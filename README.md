@@ -62,4 +62,4 @@ python -m http.server 8765
 
 ## 授權
 
-尚未指定。
+MIT，詳見 [LICENSE](LICENSE)。
