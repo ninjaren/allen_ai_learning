@@ -1,0 +1,122 @@
+:root{
+  --bg:#f6f7f9; --card:#fff; --text:#1b1f24; --muted:#6a737d; --line:#d0d7de;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0f1115; --card:#1a1d23; --text:#e6e8eb; --muted:#8b949e; --line:#30363d; }
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font:16px/1.6 system-ui,-apple-system,"Noto Sans TC","Microsoft JhengHei",sans-serif;
+  padding:0 16px calc(40px + env(safe-area-inset-bottom));
+}
+.top,main{max-width:680px;margin:0 auto}
+.top{padding:20px 0 4px}
+h1{margin:0 0 12px;font-size:1.4rem}
+.muted{color:var(--muted);font-size:.85rem;margin:6px 0 0;min-height:1.2em}
+
+/* 分支分頁：固定在最上方，分支很多時可左右滑 */
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-bottom:0}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:10px 0 12px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs[hidden]{display:none}
+/* 電腦寬度：分頁自動換行，全部直接看得到，不需要拖曳 */
+@media (min-width: 700px){
+  .tabs{flex-wrap:wrap;overflow-x:visible}
+}
+/* 寬螢幕：內容區往外撐 */
+@media (min-width: 900px){
+  .top,main{max-width:1000px}
+}
+@media (min-width: 1400px){
+  .top,main{max-width:1200px}
+}
+.tab{
+  flex:0 0 auto;display:flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:8px 14px;border:1px solid var(--line);border-radius:99px;
+  background:var(--card);color:var(--text);font:inherit;font-size:.95rem;cursor:pointer;
+}
+.tab small{color:var(--muted);font-size:.75rem}
+.tab.on{background:var(--c);border-color:var(--c);color:#fff}
+.tab.on small{color:rgba(255,255,255,.8)}
+/* 可展開的教學項目 */
+.body li.lesson-li{list-style:none;margin-left:-1.2em}
+.lesson{border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.lesson>summary{cursor:pointer;padding:9px 12px;list-style:none;position:relative;padding-right:34px}
+.lesson>summary::-webkit-details-marker{display:none}
+.lesson>summary::after{content:"＋";position:absolute;right:12px;color:var(--muted)}
+.lesson[open]>summary::after{content:"－"}
+.lesson[open]>summary{font-weight:600;border-bottom:1px dashed var(--line)}
+.lbody{padding:4px 14px 12px}
+.lbody p{margin:10px 0}
+.lbody ul{padding-left:1.3em;margin:8px 0}
+.lbody code{background:rgba(127,127,127,.18);padding:1px 6px;border-radius:5px;font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:.9em}
+.lbody pre{background:#0d1117;color:#e6edf3;border-radius:8px;padding:12px 14px;overflow-x:auto;margin:10px 0;line-height:1.5}
+.lbody pre code{background:none;padding:0;color:inherit;font-size:.85rem;white-space:pre}
+/* 長的行內程式碼允許換行，避免撐出橫向捲軸（程式碼區塊 pre 則維持可左右捲動） */
+.lbody :not(pre)>code{overflow-wrap:anywhere}
+.lbody,.body{overflow-wrap:anywhere}
+@media (max-width: 600px){
+  body{padding-left:10px;padding-right:10px}
+  .nodes{margin-left:6px;padding-left:14px}
+  .skill::before{left:-14px;width:11px}
+  .skill summary{padding-left:12px}
+  .body{padding:0 8px 10px}
+  .body li.lesson-li{margin-left:-1.2em}
+  .lbody{padding:2px 10px 10px}
+  .lbody ul{padding-left:1.1em}
+  .pitfall{padding:8px 10px}
+}
+.refs{margin:10px 0 6px;padding:10px 14px;border-left:4px solid #2f81f7;border-radius:6px;background:rgba(47,129,247,.1)}
+.refs ul{margin:6px 0 0;padding-left:1.2em}
+.refs li{margin:4px 0}
+.refs a{color:#2f81f7;word-break:break-word}
+.pitfall{margin:14px 0 4px;padding:10px 14px;border-left:4px solid #f85149;border-radius:6px;background:rgba(248,81,73,.1)}
+.pitfall ul{margin:6px 0 0}
+.pitfall li{margin:6px 0}
+.xref{border:0;background:none;color:#2f81f7;font:inherit;font-size:.85rem;cursor:pointer;padding:0 0 0 4px;text-decoration:underline}
+.skill.flash{animation:flash 1.5s}
+@keyframes flash{from{box-shadow:0 0 0 3px var(--c)}to{box-shadow:0 0 0 0 transparent}}
+.skill.flat summary::after{content:""}
+.skill.flat summary{cursor:default}
+
+.branch{margin:10px 0 26px}
+.branch h2{margin:0 0 12px;font-size:1.15rem;display:flex;align-items:center;gap:8px}
+.branch h2 small{color:var(--muted);font-weight:400;font-size:.8rem}
+.nodes{margin-left:14px;padding-left:20px;border-left:3px solid var(--c)}
+.nodes h3{margin:16px 0 8px;font-size:.85rem;color:var(--muted);letter-spacing:.05em}
+.nodes h3:first-child{margin-top:0}
+
+.skill{
+  position:relative;margin:0 0 10px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;
+}
+.skill::before{content:"";position:absolute;left:-20px;top:24px;width:17px;height:3px;background:var(--c)}
+.skill summary{
+  list-style:none;cursor:pointer;padding:12px 40px 12px 14px;position:relative;
+}
+.skill summary::-webkit-details-marker{display:none}
+.skill summary::after{
+  content:"＋";position:absolute;right:14px;top:12px;color:var(--muted);
+}
+.skill[open] summary::after{content:"－"}
+.skill summary b{display:block}
+.skill summary span{color:var(--muted);font-size:.88rem}
+.skill summary .core{color:#e5484d;font-size:1.15em;font-weight:700}
+.legend .core{color:#e5484d;font-weight:700}
+.body{padding:0 14px 12px;border-top:1px dashed var(--line)}
+.body ul{padding-left:1.2em;margin:10px 0}
+.body li{margin:6px 0}
+.tip{background:rgba(246,130,31,.12);border-left:4px solid #f6821f;padding:8px 12px;border-radius:6px;margin:10px 0}
+.links{margin:8px 0 0}
+.links a{color:#2f81f7;margin-right:14px}
+.empty{color:var(--muted);margin:0;padding:6px 0}
+
+/* 表格、編號清單、備註框（求職與面試手冊使用） */
+.lbody ol{padding-left:1.5em;margin:8px 0}
+.lbody li{margin:4px 0}
+.tablewrap{overflow-x:auto;margin:10px 0}
+.lbody table{border-collapse:collapse;font-size:.9rem;min-width:100%}
+.lbody th,.lbody td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top;overflow-wrap:normal}
+.lbody th{background:rgba(127,127,127,.12);white-space:nowrap}
+.note{background:rgba(47,129,247,.08);border-left:4px solid #8b949e;padding:8px 12px;border-radius:6px;margin:10px 0;font-size:.9rem;color:var(--muted)}
