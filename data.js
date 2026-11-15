@@ -814,8 +814,181 @@ const TREE = [
       },
     ],
   },
-  { id: "p8", name: "項目8", color: "#f85149", skills: [] },
-  { id: "p9", name: "項目9", color: "#6e7681", skills: [] },
+  {
+    id: "p8", name: "生成式AI", color: "#f85149",
+    skills: [
+      {
+        id: "gai-01", group: "基本認識", name: "1. 生成式 AI 能做什麼、不能做什麼",
+        summary: "它怎麼產生內容、四種常見失誤（幻覺、過時、上下文衰退、被帶偏）、什麼時候適合用",
+        points: [
+          { t: "它怎麼產生內容：接龍高手的比喻", body: "ga-1-01" },
+          { t: "常見的失誤", body: "ga-1-02" },
+          { t: "什麼時候該用、要把關到什麼程度", body: "ga-1-03" },
+        ],
+      },
+      {
+        id: "gai-02", group: "使用技巧", name: "2. 設計 Prompt",
+        summary: "把要什麼說清楚：新員工測試、背景與角色、給範例、長資料與拆步驟",
+        points: [
+          { t: "清晰且直接", body: "ga-2-01" },
+          { t: "背景、動機與角色", body: "ga-2-02" },
+          { t: "用範例教它", body: "ga-2-03" },
+          { t: "長資料、標籤與拆步驟", body: "ga-2-04" },
+        ],
+      },
+      {
+        id: "gai-03", group: "使用技巧", name: "3. 改善 AI 輸出",
+        summary: "先診斷再改、具體回饋與自我檢查、用固定的小測試題比較提示詞",
+        points: [
+          { t: "先診斷：成功標準與常見症狀", body: "ga-3-01" },
+          { t: "迭代技巧", body: "ga-3-02" },
+          { t: "建立自己的小測試題", body: "ga-3-03" },
+        ],
+      },
+      {
+        id: "gai-04", group: "使用技巧", name: "4. 判斷 AI 回答可信度",
+        summary: "官方減少幻覺的三個做法、查證流程、可疑訊號與練習",
+        points: [
+          { t: "允許說不知道、先引述、再驗證", body: "ga-4-01" },
+          { t: "查證流程：哪些一定要查", body: "ga-4-02" },
+          { t: "可疑訊號與練習", body: "ga-4-03" },
+        ],
+      },
+      {
+        id: "gai-05", group: "資料與隱私", name: "5. 哪些資料不能丟給 AI",
+        summary: "個資、機密、憑證；去識別化；服務如何處理你的資料；送出前的檢查與補救",
+        points: [
+          { t: "哪些不能貼、怎麼去識別化", body: "ga-5-01" },
+          { t: "服務怎麼使用你的資料", body: "ga-5-02" },
+          { t: "送出前的檢查與貼錯了怎麼辦", body: "ga-5-03" },
+        ],
+      },
+      {
+        id: "gai-06", group: "進階應用", name: "6. 文字以外的生成與理解",
+        summary: "生圖提示怎麼寫、圖片聲音影片的使用權與誤導風險、讓 AI 看圖與讀檔",
+        points: [
+          { t: "生圖的提示詞", body: "ga-6-01" },
+          { t: "使用權、肖像與誤導風險", body: "ga-6-02" },
+          { t: "讓 AI 看圖與讀檔", body: "ga-6-03" },
+        ],
+      },
+      {
+        id: "gai-07", group: "進階應用", name: "7. 工作流程實例",
+        summary: "摘要長文件、寫作與改稿、分析資料、學習新東西；每個都附流程、示意提示詞與檢查點",
+        points: [
+          { t: "摘要長文件", body: "ga-7-01" },
+          { t: "寫作與改稿", body: "ga-7-02" },
+          { t: "分析資料與表格", body: "ga-7-03" },
+          { t: "學習新東西", body: "ga-7-04" },
+        ],
+      },
+      {
+        id: "gai-08", group: "責任", name: "8. 責任與倫理",
+        summary: "智慧財產局兩則函釋整理（AI 生成物著作權與商用）、偏見與揭露、總整理與四個常被問的問題",
+        points: [
+          { t: "著作權與商業使用", body: "ga-8-01" },
+          { t: "偏見、揭露與署名", body: "ga-8-02" },
+          { t: "總整理與四個常被問的問題", body: "ga-8-03" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "p9", name: "HuggingFace", color: "#6e7681",
+    skills: [
+      {
+        id: "hf-01", group: "平台基礎", name: "1. Hub 總覽與帳號",
+        summary: "Hugging Face Hub 是什麼、三種倉庫、token 與登入、方案與額度",
+        points: [
+          { t: "Hub 是什麼：模型、資料集與 Spaces", body: "hb-1-01" },
+          { t: "Token 與登入", body: "hb-1-02" },
+          { t: "方案、額度與限制", body: "hb-1-03" },
+        ],
+      },
+      {
+        id: "hf-02", group: "平台基礎", name: "2. 找模型與讀模型卡",
+        summary: "用網站、Python、命令列找模型；讀模型卡的 YAML；授權與 gated 模型；選型檢查表",
+        points: [
+          { t: "找模型：網站、HfApi 與 hf CLI", body: "hb-2-01" },
+          { t: "讀懂模型卡", body: "hb-2-02" },
+          { t: "授權與 gated 模型", body: "hb-2-03" },
+          { t: "選型流程與檢查表", body: "hb-2-04" },
+        ],
+      },
+      {
+        id: "hf-03", group: "平台基礎", name: "3. 下載、快取與上傳",
+        summary: "huggingface_hub 與 hf 命令列：下載函式、版本、快取結構、清理與離線、環境變數、上傳",
+        points: [
+          { t: "hf_hub_download 與 snapshot_download", body: "hb-3-01" },
+          { t: "hf 命令列", body: "hb-3-02" },
+          { t: "快取結構與 Windows 限制", body: "hb-3-03" },
+          { t: "快取管理、離線與環境變數", body: "hb-3-04" },
+          { t: "上傳到 Hub", body: "hb-3-05" },
+        ],
+      },
+      {
+        id: "hf-04", group: "平台基礎", name: "4. 安全：pickle 與 safetensors",
+        summary: "為什麼載入模型檔可能等於執行程式、Hub 的掃描與它的極限、safetensors 與載入前檢查表",
+        points: [
+          { t: "pickle 的風險與 Hub 的掃描", body: "hb-4-01" },
+          { t: "safetensors 與載入前檢查清單", body: "hb-4-02" },
+        ],
+      },
+      {
+        id: "hf-05", group: "模型與資料", name: "5. 在程式裡使用 Hub 模型",
+        summary: "from_pretrained 背後的下載與快取、預先下載與離線、固定版本；任務標籤與 pipeline 的對應",
+        points: [
+          { t: "從 Hub 到你的程式：下載、快取與離線", body: "hb-5-01" },
+          { t: "任務標籤與 pipeline", body: "hb-5-02" },
+        ],
+      },
+      {
+        id: "hf-06", group: "模型與資料", name: "6. datasets 資料集",
+        summary: "load_dataset、處理與格式、串流處理大資料、存回 Hub 與匯出",
+        points: [
+          { t: "載入資料集", body: "hb-6-01" },
+          { t: "map、filter 與格式轉換", body: "hb-6-02" },
+          { t: "串流處理大資料集", body: "hb-6-03" },
+          { t: "存回 Hub、匯出與合併", body: "hb-6-04" },
+        ],
+      },
+      {
+        id: "hf-07", group: "模型與資料", name: "7. Inference Providers",
+        summary: "用一把 token 呼叫雲端開源模型；OpenAI 相容端點；挑供應商；計費與取捨",
+        points: [
+          { t: "概念與第一次呼叫", body: "hb-7-01" },
+          { t: "挑供應商與可用模型", body: "hb-7-02" },
+          { t: "計費與取捨", body: "hb-7-03" },
+        ],
+      },
+      {
+        id: "hf-08", group: "模型與資料", name: "8. 嵌入與 sentence-transformers",
+        summary: "文字轉向量與相似度、重排與稀疏編碼器、選嵌入模型並接進 RAG",
+        points: [
+          { t: "嵌入與相似度", body: "hb-8-01" },
+          { t: "重排與稀疏編碼器", body: "hb-8-02" },
+          { t: "選型與接進 RAG", body: "hb-8-03" },
+        ],
+      },
+      {
+        id: "hf-09", group: "發佈與部署", name: "9. Spaces",
+        summary: "把 demo 放上網：SDK、可見度與硬體、建立 Gradio Space、秘密與資料保存",
+        points: [
+          { t: "Spaces 是什麼、方案與硬體", body: "hb-9-01" },
+          { t: "建立 Gradio Space", body: "hb-9-02" },
+          { t: "秘密、內建變數與保存資料", body: "hb-9-03" },
+        ],
+      },
+      {
+        id: "hf-10", group: "發佈與部署", name: "10. 雲端選擇與 Jobs",
+        summary: "本機、Inference Providers、Spaces、Jobs 與商用 API 的選擇；hf jobs 基本用法",
+        points: [
+          { t: "我的模型該放在哪裡跑", body: "hb-10-01" },
+          { t: "Hugging Face Jobs 入門", body: "hb-10-02" },
+        ],
+      },
+    ],
+  },
   { id: "p10", name: "項目10", color: "#8957e5", skills: [] },
 ];
 
