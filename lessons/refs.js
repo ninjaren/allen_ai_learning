@@ -521,4 +521,13 @@ window.REFS = {
   "ga-8-01": [["智慧財產局著作權主題網：電子郵件 1140522c", "https://www.tipo.gov.tw/tw/copyright/692-34252.html"], ["智慧財產局著作權主題網：電子郵件 1140625", "https://www.tipo.gov.tw/tw/copyright/692-34651.html"], ["全國法規資料庫：著作權法", "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=J0070017"]],
   "ga-8-02": [["Google：Nano Banana image generation（Gemini API）", "https://aistudio.google.com/docs/image-generation"], ["智慧財產局著作權主題網：電子郵件 1140522c", "https://www.tipo.gov.tw/tw/copyright/692-34252.html"]],
   "ga-8-03": [["Claude 文件：提示最佳實踐", "https://platform.claude.com/docs/zh-TW/build-with-claude/prompt-engineering/claude-prompting-best-practices"], ["Claude 文件：減少幻覺", "https://platform.claude.com/docs/zh-TW/test-and-evaluate/strengthen-guardrails/reduce-hallucinations"], ["Anthropic Privacy Center：Is my data used for model training?", "https://privacy.claude.com/en/articles/10023580-is-my-data-used-for-model-training"]],
+
+  // ───────── 多代理人（p10）：本組以使用者自己的 byte_town 專案為案例，只有引用 Claude Agent SDK 子代理文件的課才附官方連結 ─────────
+  "ma-1-02": [["Claude Agent SDK：Subagents", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
+  "ma-2-02": [["Claude Agent SDK：Subagents", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
+  "ma-3-03": [["Claude Agent SDK：Subagents（工具限制）", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
+  "ma-4-02": [["Claude Agent SDK：Subagents（子代理繼承什麼）", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
+  "ma-4-03": [["Claude Agent SDK：Subagents", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
+  "ma-5-05": [["Claude Agent SDK：Subagents（深度、並行與花費上限）", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
+  "ma-7-03": [["Claude Agent SDK：Subagents（子代理輸出掃描）", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
 };
