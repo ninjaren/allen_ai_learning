@@ -45,7 +45,7 @@ function inline(text) {
 }
 
 // 教學最前面的「官方文件」連結，資料在 lessons/refs.js
-const EDIT_MODE = /[?&]edit=1/.test(location.search);
+const EDIT_MODE = /[?&]edit=1(&|$)/.test(location.search);
 
 function renderRefs(refs) {
   const box = el("div", "refs");
