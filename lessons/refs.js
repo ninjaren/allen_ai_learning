@@ -530,4 +530,13 @@ window.REFS = {
   "ma-4-03": [["Claude Agent SDK：Subagents", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
   "ma-5-05": [["Claude Agent SDK：Subagents（深度、並行與花費上限）", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
   "ma-7-03": [["Claude Agent SDK：Subagents（子代理輸出掃描）", "https://code.claude.com/docs/en/agent-sdk/subagents"]],
+  // p8 卡片 9：圖像與聲音原理（網址都用 curl 確認過標題；ga-9-07 影片部分沒有來源）
+  "ga-9-01": [["Hugging Face Diffusion 課程：Unit 1 擴散模型簡介", "https://huggingface.co/learn/diffusion-course/unit1/1"], ["Hugging Face Audio 課程：Unit 1 處理音訊資料", "https://huggingface.co/learn/audio-course/chapter1/introduction"]],
+  "ga-9-02": [["ViT：An Image is Worth 16x16 Words", "https://arxiv.org/abs/2010.11929"], ["Latent Diffusion：High-Resolution Image Synthesis with Latent Diffusion Models", "https://arxiv.org/abs/2112.10752"]],
+  "ga-9-03": [["DDPM：Denoising Diffusion Probabilistic Models", "https://arxiv.org/abs/2006.11239"], ["Hugging Face Diffusion 課程：Unit 1", "https://huggingface.co/learn/diffusion-course/unit1/1"]],
+  "ga-9-04": [["Latent Diffusion（交叉注意力條件）", "https://arxiv.org/abs/2112.10752"], ["Hugging Face Diffusers 文件", "https://huggingface.co/docs/diffusers/index"]],
+  "ga-9-05": [["DiT：Scalable Diffusion Models with Transformers", "https://arxiv.org/abs/2212.09748"], ["Flow Matching for Generative Modeling", "https://arxiv.org/abs/2210.02747"], ["Stable Diffusion 3：Scaling Rectified Flow Transformers", "https://arxiv.org/abs/2403.03206"]],
+  "ga-9-06": [["Whisper：Robust Speech Recognition via Large-Scale Weak Supervision", "https://arxiv.org/abs/2212.04356"], ["EnCodec：High Fidelity Neural Audio Compression", "https://arxiv.org/abs/2210.13438"], ["AudioLM", "https://arxiv.org/abs/2209.03143"], ["VALL-E：Neural Codec Language Models are Zero-Shot TTS", "https://arxiv.org/abs/2301.02111"], ["音訊語言模型綜述", "https://arxiv.org/abs/2402.13236"]],
+  "ga-9-07": [["MusicGen：Simple and Controllable Music Generation", "https://arxiv.org/abs/2306.05284"]],
+  "ga-9-08": [["Transfusion：Predict the Next Token and Diffuse Images", "https://arxiv.org/abs/2408.11039"], ["統一多模態理解與生成模型綜述", "https://arxiv.org/abs/2505.02567"]],
 };
