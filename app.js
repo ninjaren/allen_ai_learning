@@ -45,6 +45,8 @@ function inline(text) {
 }
 
 // 教學最前面的「官方文件」連結，資料在 lessons/refs.js
+const EDIT_MODE = /[?&]edit=1/.test(location.search);
+
 function renderRefs(refs) {
   const box = el("div", "refs");
   box.append(el("strong", null, "官方文件"));
@@ -148,6 +150,10 @@ function skillCard(s, open) {
         const li = el("li", "lesson-li");
         const d2 = el("details", "lesson");
         d2.append(el("summary", null, ptext(p)), renderBlocks(lesson, (window.REFS || {})[p.body]));
+        if (EDIT_MODE) { // 網址加 ?edit=1：顯示這一課的課文在哪個檔案、第幾行（由 tools/where.py 產生）
+          const w = (window.WHERE || {})[p.body];
+          d2.insertBefore(el("div", "where", "課文鍵 " + p.body + "　檔案：" + (w ? "lessons/" + w[0] + " 第 " + w[1] + " 行" : "（找不到，請執行 python tools/where.py）")), d2.children[1]);
+        }
         li.append(d2);
         ul.append(li);
         return;
