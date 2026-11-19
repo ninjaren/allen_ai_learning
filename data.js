@@ -399,6 +399,18 @@ const TREE = [
         ],
       },
       {
+        id: "tool-md", group: "開發工具", name: "Markdown 與 AI 的 .md 檔",
+        summary: "CLAUDE.md、AGENTS.md、SKILL.md 與提示詞、知識文件：AI 時代最常碰到的檔案格式",
+        points: [
+          { t: "為什麼 AI 世界到處都是 .md", body: "md-01" },
+          { t: "夠用的語法與寫給 AI 看的結構", body: "md-02" },
+          { t: "CLAUDE.md 與 AGENTS.md", body: "md-03" },
+          { t: "SKILL.md 與 frontmatter", body: "md-04" },
+          { t: "提示詞、知識文件與輸出裡的 Markdown", body: "md-05" },
+          { t: "檢查表、常見錯誤與面試整理", body: "md-06" },
+        ],
+      },
+      {
         id: "tool-shell", group: "開發工具", name: "終端機與 Linux 基本操作",
         summary: "指令列是開發與部署的共同語言",
         points: [

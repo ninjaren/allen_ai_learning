@@ -539,4 +539,11 @@ window.REFS = {
   "ga-9-06": [["Whisper：Robust Speech Recognition via Large-Scale Weak Supervision", "https://arxiv.org/abs/2212.04356"], ["EnCodec：High Fidelity Neural Audio Compression", "https://arxiv.org/abs/2210.13438"], ["AudioLM", "https://arxiv.org/abs/2209.03143"], ["VALL-E：Neural Codec Language Models are Zero-Shot TTS", "https://arxiv.org/abs/2301.02111"], ["音訊語言模型綜述", "https://arxiv.org/abs/2402.13236"]],
   "ga-9-07": [["MusicGen：Simple and Controllable Music Generation", "https://arxiv.org/abs/2306.05284"]],
   "ga-9-08": [["Transfusion：Predict the Next Token and Diffuse Images", "https://arxiv.org/abs/2408.11039"], ["統一多模態理解與生成模型綜述", "https://arxiv.org/abs/2505.02567"]],
+  // 其他分支：Markdown 與 AI 的 .md 檔（網址都用 curl 確認過）
+  "md-01": [["CommonMark 規格", "https://spec.commonmark.org/"], ["AGENTS.md 官網", "https://agents.md"]],
+  "md-02": [["CommonMark 規格", "https://spec.commonmark.org/"], ["GitHub Flavored Markdown 規格", "https://github.github.com/gfm/"]],
+  "md-03": [["Claude Code 文件：Claude 如何記住您的專案", "https://code.claude.com/docs/zh-TW/memory"], ["AGENTS.md 官網", "https://agents.md"]],
+  "md-04": [["Claude Code 文件：使用 skills 擴展 Claude", "https://code.claude.com/docs/zh-TW/skills"]],
+  "md-05": [["Claude 文件：提示最佳實踐", "https://platform.claude.com/docs/zh-TW/build-with-claude/prompt-engineering/claude-prompting-best-practices"]],
+  "md-06": [["Claude Code 文件：Claude 如何記住您的專案", "https://code.claude.com/docs/zh-TW/memory"], ["Claude Code 文件：使用 skills 擴展 Claude", "https://code.claude.com/docs/zh-TW/skills"]],
 };
