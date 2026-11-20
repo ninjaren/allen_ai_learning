@@ -68,6 +68,8 @@ h1{margin:0 0 12px;font-size:1.4rem}
   .pitfall{padding:8px 10px}
 }
 .refs{margin:10px 0 6px;padding:10px 14px;border-left:4px solid #2f81f7;border-radius:6px;background:rgba(47,129,247,.1)}
+.refs.try{border-left-color:#2da44e;background:rgba(45,164,78,.1)}
+.refs.try a{color:#2da44e}
 .refs ul{margin:6px 0 0;padding-left:1.2em}
 .refs li{margin:4px 0}
 .refs a{color:#2f81f7;word-break:break-word}
