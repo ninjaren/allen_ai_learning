@@ -71,7 +71,7 @@ print(response)           # 回應物件；str(response) 是答案文字`),
       { note: "**白話版：** Document（文件）是原始資料（一份 PDF、一個網頁）；Node（節點）是把文件切成的小段，是檢索的基本單位。擷取管線（ingestion pipeline）是一條加工線：讀進來 → 切小段 → 轉成向量，並且能記得哪些處理過了，避免重複做。" },
       "**LlamaIndex 的資料有兩個基本單位：Document 與 Node。** Document 是『任何資料來源的通用容器』（一個 PDF、一次 API 輸出、一批資料庫結果），存著文字加屬性，主要是 metadata（附在文字上的註解）與 relationships（和其他 Document 或 Node 的連結）。Node 是 Document 的**一個片段（chunk）**，可以是文字、圖片等，同樣帶 metadata 與 relationships。官方註明 Node 會**繼承來源 Document 的 metadata**，所以像 file_name 這種欄位會自動傳到每個 Node。",
       C(String.raw`from llama_index.core import Document, VectorStoreIndex            # 官方 documents and nodes 頁的匯入
-from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.node_parser import SentenceSplitter  # SentenceSplitter：依句子邊界把文件切成節點
 
 # 手動建立 Document：文字加 metadata（來源、類別、權限標籤等）
 documents = [Document(text="退貨需在七天內提出申請……", metadata={"source": "returns.md", "dept": "客服"})]
@@ -122,7 +122,7 @@ documents = reader.load_data(num_workers=4) # 平行載入；Windows 上效益�
         "**persist 與 load：**把管線狀態（含快取）存到目錄，之後載入，未變動的工作幾乎瞬間完成。",
       ] },
       C(String.raw`from llama_index.core.ingestion import IngestionPipeline            # 匯入路徑請以官方文件為準
-from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.node_parser import SentenceSplitter  # SentenceSplitter：依句子邊界把文件切成節點
 from llama_index.core.storage.docstore import SimpleDocumentStore      # 官方 storing 頁的匯入
 
 pipeline = IngestionPipeline(
@@ -170,9 +170,9 @@ pipeline.persist("./pipeline_storage")      # 存下狀態（含快取），下�
       ] } },
       "文件庫與索引庫建立在共用的鍵值儲存抽象上；持久化支援 fsspec 能處理的任何後端，官方確認有本機檔案系統、AWS S3、Cloudflare R2。",
       C(String.raw`from llama_index.core import StorageContext
-from llama_index.core.storage.docstore import SimpleDocumentStore
-from llama_index.core.storage.index_store import SimpleIndexStore
-from llama_index.core.vector_stores import SimpleVectorStore
+from llama_index.core.storage.docstore import SimpleDocumentStore  # SimpleDocumentStore：存放文件內容的簡易儲存
+from llama_index.core.storage.index_store import SimpleIndexStore  # SimpleIndexStore：存放索引資訊的簡易儲存
+from llama_index.core.vector_stores import SimpleVectorStore  # SimpleVectorStore：存放向量的簡易儲存
 
 # StorageContext：把各種儲存元件綁在一起；這是官方範例，傳入的是預設的（簡單、單機）實作
 storage_context = StorageContext.from_defaults(
@@ -193,7 +193,7 @@ index = load_index_from_storage(storage_context)
 # 注意：載入時使用的嵌入模型必須與建索引時相同，否則查詢向量與文件向量對不上`),
       "**用向量資料庫（官方範例是 Chroma）：** 向量放在索引之外的資料庫，重複使用不必重新嵌入。步驟：建立 Chroma 客戶端並指定儲存路徑、取得或建立 collection、用 ChromaVectorStore 包起來並放進 StorageContext、建立索引；之後要接回既有的向量，用 VectorStoreIndex.from_vector_store。",
       C(String.raw`import chromadb
-from llama_index.core import VectorStoreIndex, StorageContext
+from llama_index.core import VectorStoreIndex, StorageContext  # VectorStoreIndex：把文件切塊後建立向量索引；StorageContext：管理索引用到的文件、向量與索引儲存
 from llama_index.vector_stores.chroma import ChromaVectorStore    # 官方範例的匯入；另需安裝對應整合套件
 
 db = chromadb.PersistentClient(path="./chroma_db")                # 資料存在這個資料夾，重啟不會消失
@@ -219,7 +219,7 @@ index = VectorStoreIndex.from_vector_store(vector_store, storage_context=storage
       ] } },
       C(String.raw`from llama_index.core import Settings
 from llama_index.llms.anthropic import Anthropic        # 官方範例：pip install llama-index-llms-anthropic
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding  # HuggingFaceEmbedding：使用 Hugging Face 的嵌入模型
 
 # 全域指定 LLM 與嵌入模型：之後沒有明確傳入的地方都用這兩個
 Settings.llm = Anthropic(model="claude-sonnet-5-5")     # 官方範例頁用的是別的模型名稱；換成你帳號能用的
@@ -365,11 +365,12 @@ for token in streaming_response.response_gen:
       ] },
       "**官方 starter 的做法值得學：把查詢引擎包成工具，交給 Agent。** 注意工具函式的 **docstring 是給模型看的說明**（和 LangChain 組第 6 課 的 @tool 同樣道理）：寫清楚『這個工具回答什麼資料的問題』，模型才知道何時該用它。",
       C(String.raw`from llama_index.core.agent.workflow import FunctionAgent      # 匯入路徑請以官方文件為準
-from llama_index.llms.anthropic import Anthropic
+from llama_index.llms.anthropic import Anthropic  # Anthropic：LlamaIndex 的 Claude 模型包裝
 
 query_engine = index.as_query_engine()
 
 # 把『查公司規章』這個能力包成一個非同步函式；官方範例用 aquery 以免卡住事件迴圈
+# search_policies：給 Agent 用的工具函式。輸入自然語言問題；用 query_engine 非同步查詢，回傳答案文字
 async def search_policies(query: str) -> str:
     """回答關於公司請假、報帳、資安規章的自然語言問題。"""   # docstring 就是工具說明，要寫清楚用途
     response = await query_engine.aquery(query)

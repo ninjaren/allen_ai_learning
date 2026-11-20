@@ -51,7 +51,7 @@ pip install --upgrade gradio
         ["outputs", "輸出元件", "數量應對應函式的回傳值"],
       ] } },
       C(String.raw`# 最小的 Gradio 應用（改寫自官方 Quickstart，未執行）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
 # 一般的 Python 函式：兩個參數進、一個值出
 def greet(name, intensity):
@@ -71,12 +71,14 @@ demo.launch()
 # 兩個版本在頁面上不一致，所以這裡只抄概念，不要逐字照抄頁面`),
       "**把 LLM 接上去的樣子：** 把 fn 換成你自己寫的、會呼叫模型的函式即可。下面的 call_llm 是我**假設的函式**（你可以換成呼叫 Claude 的程式，見 [[ai-03]]），不是官方範例。",
       C(String.raw`# 把一個「問題進、答案出」的函式做成網頁（概念示意，未執行）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
+# call_llm：假設的函式。輸入問題字串；回傳模型回答的字串（這裡放你呼叫模型的程式）
 def call_llm(question: str) -> str:
     # 假設的函式：這裡放你呼叫模型的程式（見 ai-03），回傳字串
     ...
 
+# answer：輸入問題；先處理空輸入，再呼叫模型並處理錯誤，回傳要顯示的文字
 def answer(question):
     # 重要：呼叫模型很慢，也要處理空輸入與錯誤，不要讓例外直接炸到使用者畫面
     if not question or not question.strip():
@@ -120,7 +122,7 @@ demo.launch(share=True)
       { note: "**白話版：** Interface 是現成的『一個輸入區、一個輸出區』範本，Blocks 則是『自己拼樂高』：你想把哪些元件放在哪裡、按下哪個按鈕要觸發哪個函式、函式的結果更新哪些元件，全都自己決定。事件監聽器（event listener）就是『當某件事發生就執行某個函式』，例如按鈕被點、文字改變、按 Enter。Gradio 還有兩種記憶：全域變數是『全店的客人共用一本帳』，gr.State 是『每個客人自己的購物籃』。" },
       "**先講它在做什麼：** 當 Interface 不夠用（要多個步驟、多個按鈕、讓一個函式的輸出餵給另一個）就換 Blocks。官方說明：把 App 的程式碼放在 with gr.Blocks() as demo: 裡面，**在 with 區塊內建立的元件會自動加入 Blocks**。官方還提到 Blocks 能控制元件的位置、處理多個資料流、用某個函式的輸出當另一個函式的輸入，以及依使用者互動更新元件的屬性或可見性。",
       C(String.raw`# Blocks 與事件監聽（改寫自官方 Blocks and Event Listeners，未執行）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
 def greet(name):
     return "Hello " + name + "!"
@@ -147,11 +149,13 @@ demo.launch()`),
       ] },
       "**多段資料流與串接：** 官方說 Blocks 不像 Interface 只有單一資料流。可以兩個按鈕雙向更新兩個元件，或做多步驟（先語音轉文字、再把文字做情緒分析）。事件後面可以接 .then()（**不管前一個事件有沒有出錯都會執行**）、.success()（只在前一個成功時執行）、.failure()（只在失敗時執行）。這在『先呼叫模型、再把結果寫進記錄』這類流程很有用。",
       C(String.raw`# 事件串接與多輸出（概念取自官方，範例為我設計，未執行）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
+# ask：假設的函式。輸入問題；回傳模型的回答（實際換成呼叫模型）
 def ask(question):
     return "（模型的回答）"          # 假設的函式，實際換成呼叫模型
 
+# log_it：假設的函式。輸入回答；回傳『已記錄』的訊息（實際會把結果寫進記錄）
 def log_it(answer):
     return "已記錄：" + answer       # 假設：把結果寫進記錄
 
@@ -173,12 +177,13 @@ demo.launch()`),
       ] } },
       "**重點：** 做多人使用的應用時，**使用者的對話內容、購物籃、上傳的檔案，不能放在全域變數裡**，否則 A 使用者會看到 B 使用者的資料。官方還提醒：gr.State 的物件必須能被 deepcopy（深層複製）；無法 deepcopy 的物件，官方建議用以 session_hash 為鍵的全域字典。",
       C(String.raw`# gr.State：每個使用者各自的購物籃（改寫自官方 State in Blocks，未執行）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
 with gr.Blocks() as demo:
     cart = gr.State([])                       # 每個使用者各有一份，初始是空 list
     items_to_add = gr.CheckboxGroup(["Cereal", "Milk", "Orange Juice", "Water"])
 
+    # add_items：輸入新增項目與目前的購物車；回傳合併後的新列表（不原地修改）
     def add_items(new_items, previous_cart):
         # 回傳新的 list（不要原地修改傳進來的 list）
         cart = previous_cart + new_items
@@ -213,9 +218,10 @@ demo.launch()
       { note: "**白話版：** ChatInterface 是 Gradio 專門替『聊天視窗』準備的現成套件：你只要寫一個函式，收到使用者這次講的話與之前的對話記錄，回傳模型的回覆，它就幫你生出整個聊天畫面（輸入框、對話泡泡、清除鈕）。串流就是『回覆一邊產生一邊顯示』，不用等整段寫完。部署則是『把它放到別人也連得到的地方』，這一課講官方提供的做法與它沒說出來的限制。" },
       "**先講它在做什麼：** 這是接 LLM 最常用的 Gradio 功能。官方 Creating a Chatbot Fast：聊天函式要**接收兩個參數：message 與 history**，名稱可以隨便取，**但順序要是這個**。最簡單的形式是回傳一個字串。",
       C(String.raw`# 最小的聊天介面（改寫自官方 Creating a Chatbot Fast，未執行）
-import random
-import gradio as gr
+import random  # random：亂數
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
+# random_response：聊天函式。輸入使用者訊息與歷史對話；隨機回傳 Yes 或 No
 def random_response(message, history):
     # message：使用者這次輸入的文字
     # history：之前的對話記錄（見下方說明）
@@ -227,9 +233,10 @@ gr.ChatInterface(
       "**history 的格式：** 官方說 history 是『一串 OpenAI 風格、含 role 與 content 欄位的字典』。官方頁面給的例子裡 content 是一個內含 type 與 text 的清單。**我讀到的頁面沒有提到 type=\"messages\" 這個參數，所以不確認它在你的版本是否需要**；寫之前請印出 history 看實際結構，不要憑印象處理。",
       "**串流：** 官方說在函式裡用 **yield** 產生一連串部分回應，**每一個會取代前一個**。串流時，送出鈕會變成停止鈕。注意：是『取代』，所以每次 yield 的要是**目前為止的完整回覆**，不是只有新增的那一小段。",
       C(String.raw`# 串流回覆（改寫自官方 slow_echo，未執行）
-import time
-import gradio as gr
+import time  # time：計時與暫停
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
+# slow_echo：串流聊天函式。輸入訊息與歷史；一個字一個字地 yield 已輸出的部分，做出打字效果
 def slow_echo(message, history):
     for i in range(len(message)):
         time.sleep(0.3)
@@ -239,6 +246,7 @@ def slow_echo(message, history):
 gr.ChatInterface(slow_echo).launch()
 
 # 接模型時的形狀（我設計的概念示意；call_llm_stream 是假設的生成器函式）：
+# chat：串流聊天函式。輸入訊息與歷史；把模型的串流片段累積起來，每次 yield 目前的完整回覆
 def chat(message, history):
     partial = ""
     for piece in call_llm_stream(message, history):   # 每次拿到一小段新文字
@@ -247,8 +255,9 @@ def chat(message, history):
       "**額外輸入與接 OpenAI 相容的服務**",
       "**additional_inputs：** 讓你在聊天框旁邊多放控制元件（例如系統提示詞、最大長度滑桿）。額外輸入的值會**接在 history 後面**傳進函式。官方範例函式簽名：def echo(message, history, system_prompt, tokens)。",
       C(String.raw`# 額外輸入（改寫自官方，未執行）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
+# echo：聊天函式。輸入訊息、歷史，以及額外元件的值；回傳包含系統提示與訊息的字串
 def echo(message, history, system_prompt, tokens):
     # 額外的元件值依序接在 message、history 之後
     return f"System prompt: {system_prompt}\n Message: {message}."
@@ -262,7 +271,7 @@ gr.ChatInterface(
 ).launch()`),
       "**一行接上本機模型：** 官方展示 gr.load_chat 可以直接接『任何 OpenAI API 相容的伺服器』，例如 Ollama（站上的進階分支有在本機實際跑過 Ollama 的課程），需要先 pip install openai。官方範例用的是本機的 http://localhost:11434/v1/ 與模型名稱 llama3.2；token 欄位官方範例是遮蔽過的，不要把你的金鑰直接寫死在程式裡。",
       C(String.raw`# 接 OpenAI 相容的服務（改寫自官方，未執行；需要 pip install openai）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
 # 本機的 Ollama 提供 OpenAI 相容端點（官方範例的位址與模型名）
 # token 這個欄位請用環境變數取得你自己的值，不要寫死在程式碼裡
@@ -275,7 +284,7 @@ gr.load_chat("http://localhost:11434/v1/", model="llama3.2", token="（你的值
         "**API：** 大多數應用的頁尾有『Use via API』連結，列出可用 Python 或 JavaScript 用戶端呼叫的端點。用 api_name 命名事件就決定端點名稱。這代表**你的函式也是一個可以被程式呼叫的 API**，保護它的要求和保護一個 API 一樣。",
       ] },
       C(String.raw`# 簡單的驗證（改寫自官方，未執行；帳密為示意，請勿使用）
-import gradio as gr
+import gradio as gr  # gradio：快速建立機器學習網頁介面
 
 demo = gr.Interface(fn=lambda x: x, inputs="text", outputs="text")
 
@@ -305,7 +314,7 @@ demo.launch(auth=("admin", "pass1234"))
       "**你要接受的思維：** 寫 Streamlit 像寫一份由上到下的腳本，**不是**寫事件處理函式。元件像變數：x = st.slider(\"x\") 會直接回傳目前的值。使用者拉動滑桿，腳本重跑，這次 x 就是新的值。",
       C(String.raw`# Streamlit 最小例子（概念取自官方 Basic concepts，例子為我設計，未執行）
 # 以下是 app.py 的內容；啟動指令（終端機）：streamlit run app.py
-import streamlit as st
+import streamlit as st  # streamlit：用純 Python 寫資料應用網頁
 
 st.title("簡單的示範")
 
@@ -317,7 +326,7 @@ st.write("你選的是", x, "，平方是", x * x)
       "**重跑帶來的結果：變數會被重設**",
       "既然整份腳本重跑，**普通的 Python 變數每次都會被重設**。想在重跑之間保存資料，用 **session_state**。官方：它在重跑之間保存值，**每個瀏覽器分頁各有獨立的 session**（官方：每個連到 Streamlit 伺服器的分頁會建立新的 session），在多頁應用裡也會保留。",
       C(String.raw`# session_state 的標準用法（改寫自官方 Add statefulness to apps，未執行）
-import streamlit as st
+import streamlit as st  # streamlit：用純 Python 寫資料應用網頁
 
 # 初始化：先檢查鍵存在與否，避免每次重跑都把值洗回初始
 if "count" not in st.session_state:
@@ -377,8 +386,8 @@ st.write("目前的計數：", st.session_state.count)`),
         ["風險", "官方警告：它用 pickle，只快取你信任來源的回傳值", "官方警告：改動回傳值會直接改到快取裡的物件，影響其他 session；回傳值必須是執行緒安全的"],
       ] } },
       C(String.raw`# 兩種快取（改寫自官方 Caching overview，未執行）
-import pandas as pd
-import streamlit as st
+import pandas as pd  # pandas：表格資料處理
+import streamlit as st  # streamlit：用純 Python 寫資料應用網頁
 
 # 資料：載入一次後，之後相同參數的呼叫直接用快取
 @st.cache_data
@@ -408,8 +417,9 @@ def load_model():
 # @st.cache_resource(scope="session")`),
       "**雜湊規則（官方）：** 快取函式的**所有輸入參數都必須可雜湊**，Streamlit 用輸入與函式程式碼判斷是否命中。參數名稱**前面加底線**，就會被排除在雜湊之外（例如 _db_connection），改它不會讓快取失效；這是傳連線物件的常見寫法。需要自訂雜湊可用 hash_funcs，官方建議雜湊要是確定性的，用 id() 可能造成不必要的重算。",
       C(String.raw`# 底線參數：不參與雜湊（改寫自官方，未執行）
-import streamlit as st
+import streamlit as st  # streamlit：用純 Python 寫資料應用網頁
 
+# fetch_data：被快取的函式。輸入資料庫連線與筆數；相同筆數會直接用快取結果，不重複查詢
 @st.cache_data
 def fetch_data(_db_connection, num_rows):
     # _db_connection：連線物件無法雜湊，也不該影響快取判斷，所以前面加底線
@@ -427,7 +437,7 @@ def fetch_data(_db_connection, num_rows):
       C(String.raw`# 聊天 App 的骨架（改寫自官方 Build a basic LLM chat app，未執行）
 # 官方範例的模型呼叫用 OpenAI 的 client；這裡用假設的函式 call_llm_stream 代替，
 # 你可以換成呼叫 Claude 的程式（見 ai-03）。它必須回傳一個可迭代的文字片段
-import streamlit as st
+import streamlit as st  # streamlit：用純 Python 寫資料應用網頁
 
 # 1. 初始化歷史訊息（只在第一次建立，重跑時不洗掉）
 if "messages" not in st.session_state:

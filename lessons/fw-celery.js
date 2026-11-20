@@ -39,16 +39,18 @@ window.LESSON = window.LESSON || {};
       ] },
       "我再補一個判斷點（我的整理，不是官方原話）：BackgroundTasks 跑在 Web 行程裡，服務重啟或當掉時任務就沒了，也沒有重試、排程與進度查詢；這些是 Celery 的價值。",
       C(String.raw`# FastAPI 的 BackgroundTasks（改寫自 FastAPI 官方範例，未執行）
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI  # BackgroundTasks：請求結束後在背景執行的小任務；FastAPI：建立應用程式物件
 
 app = FastAPI()
 
+# write_notification：背景任務函式。輸入 email 與訊息；把通知寫進 log.txt，沒有回傳值
 def write_notification(email: str, message=""):
     # 一般函式或 async 函式都可以當背景任務
     with open("log.txt", mode="w") as email_file:
         content = f"notification for {email}: {message}"
         email_file.write(content)
 
+# send_notification：POST 端點。輸入 email；用 background_tasks 註冊背景任務，先回應用戶端，回應送出之後才寫通知
 @app.post("/send-notification/{email}")
 async def send_notification(email: str, background_tasks: BackgroundTasks):
     # add_task：回應送出「之後」才執行 write_notification
@@ -84,7 +86,7 @@ docker run -d -p 6379:6379 redis
 pip install celery`),
       "**步驟 2：寫一個 app 與任務**",
       C(String.raw`# tasks.py（改寫自官方 First Steps，未執行）
-from celery import Celery
+from celery import Celery  # Celery：建立 Celery 應用（任務佇列）
 
 # 第一個參數是目前模組的名稱（'tasks'）；
 # 官方說它的用途是：任務定義在 __main__ 模組時，用來自動產生任務名稱
@@ -94,6 +96,7 @@ from celery import Celery
 app = Celery('tasks', broker='pyamqp://guest@localhost//')
 
 # @app.task 把一般函式變成「任務」
+# add：最簡單的任務範例。輸入兩個數，回傳相加結果（用 @app.task 註冊後就成為 Celery 任務）
 @app.task
 def add(x, y):
     return x + y`),
@@ -110,7 +113,7 @@ celery --help
       "**步驟 4：呼叫任務**",
       "呼叫任務用 delay()，它是 apply_async() 的簡寫（第 4 課講完整版）。**delay 不會等任務做完**，它只是把訊息送到 broker，立刻回傳一個 AsyncResult（任務結果的代理物件）。真正執行是 worker 做的。",
       C(String.raw`# 在 Python 互動環境（未執行）
-from tasks import add
+from tasks import add  # add：示範用的任務函式
 
 # 送出任務；立即回傳 AsyncResult，不會等待 add 執行完
 result = add.delay(4, 4)
@@ -118,7 +121,7 @@ result = add.delay(4, 4)
       "**步驟 5：結果儲存（result backend）**",
       "**官方明說：結果預設是關閉的。** 想追蹤任務狀態或取得回傳值，必須設定 result backend。官方列的選項包含 SQLAlchemy 或 Django ORM、MongoDB、Memcached、Redis、RPC（透過 RabbitMQ 或 AMQP 傳回），或自訂。",
       C(String.raw`# 設定 result backend（官方範例，未執行）
-from celery import Celery
+from celery import Celery  # Celery：建立 Celery 應用（任務佇列）
 
 # backend='rpc://'：結果以訊息的形式傳回（RPC 風格，結果只送回發起任務的那個用戶端）
 app = Celery('tasks', backend='rpc://', broker='pyamqp://')
@@ -199,7 +202,7 @@ app.config_from_object('celeryconfig')
         ["retry_backoff", "啟用指數退避；retry_backoff_max 預設 600 秒，retry_jitter 預設 True（加隨機抖動）"],
       ] } },
       C(String.raw`# 重試的兩種寫法（改寫自官方 Tasks 頁，未執行）
-from celery import Celery
+from celery import Celery  # Celery：建立 Celery 應用（任務佇列）
 from requests import RequestException   # 假設的例外，用來示範
 
 app = Celery('tasks', broker='redis://localhost')
@@ -223,6 +226,7 @@ def fetch2(url):
       "**官方預設：訊息在任務『開始執行之前』就確認，所以已經開始的任務不會被重跑。** 如果任務是**冪等**的（重複執行不會造成額外傷害），可以設 acks_late=True，改成任務結束後才確認；代價是 worker 當機時這個任務可能被重跑。官方補充：就算設了 acks_late，如果子行程被信號殺掉或呼叫 sys.exit()，訊息還是會被確認；要在這些情況也重送，要開 task_reject_on_worker_lost。官方的建議設定組合是 task_acks_late=True 加上 worker_prefetch_multiplier=1（Optimizing 頁）。",
       "**冪等的白話：** 『寄一封歡迎信』不是冪等（重跑會寄兩封）；『把使用者 123 的狀態設成已寄出』是冪等（重跑結果一樣）。設計任務時，常見做法是先檢查『這件事做過了嗎』再做，或用唯一鍵讓重複寫入無害。這是通用的工程做法，不是 Celery 官方語法。",
       C(String.raw`# 冪等任務搭配 acks_late（概念示意，未執行）
+# mark_email_sent：冪等任務示範。把使用者狀態設為已寄出，重跑幾次結果都一樣
 @app.task(acks_late=True)    # 任務結束後才確認訊息；worker 中途掛掉時任務會被重送
 def mark_email_sent(user_id):
     # 冪等寫法：「把狀態設成已寄出」，重跑幾次結果都一樣
@@ -287,7 +291,7 @@ process_order.delay(123)
       ] } },
       "**最後一列要特別分清楚：** 這裡的 retry 是『把任務訊息送進 broker 這個動作』的重試，和第 3 課『任務執行失敗後重新執行』的重試是兩個不同層次。",
       C(String.raw`# 呼叫選項示範（改寫自官方 Calling Tasks 頁，未執行）
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone  # datetime：日期時間型別；timedelta：表示一段時間長度；timezone：時區物件
 
 # 3 秒後執行
 add.apply_async((2, 2), countdown=3)
@@ -339,7 +343,7 @@ app.conf.task_default_queue = 'default'
         ["map, starmap, chunks", "一個任務對多筆輸入", "map 只送一則訊息、依序執行；chunks 把工作切成區塊"],
       ] } },
       C(String.raw`# canvas 示範（改寫自官方 Canvas 頁，未執行；add、tsum 是官方範例任務）
-from celery import chain, group, chord
+from celery import chain, group, chord  # chain：把多個任務串成先後順序；group：讓多個任務同時並行執行；chord：先並行跑一組任務，全部完成後再跑一個收尾任務
 
 # chain：2+2=4 → 4+4=8 → 8+8=16
 res = chain(add.s(2, 2), add.s(4), add.s(8))()
@@ -379,7 +383,7 @@ chord((add.s(i, i) for i in range(100)))(tsum.s()).get()
       "**Celery beat：定期任務**",
       "**beat 是一個排程器**，官方說它『按固定間隔啟動任務，然後由可用的 worker 節點執行』。要弄清楚：**beat 本身不執行任務，只負責在時間到時送出任務訊息**，真正執行的還是 worker。所以你要同時跑 worker 與 beat 兩種行程。",
       C(String.raw`# 定期任務設定（改寫自官方 Periodic Tasks 頁，未執行）
-from celery.schedules import crontab
+from celery.schedules import crontab  # crontab：用 cron 風格寫排程時間
 
 app.conf.beat_schedule = {
     # 每 30 秒執行 tasks.add，參數 (16, 16)
@@ -524,11 +528,12 @@ app.conf.result_backend = 'redis://localhost:6379/0'`),
         "**pytest 外掛：** 預設關閉，用 pip install celery[pytest] 等方式啟用。提供 celery_app（測試用 app）與 celery_worker（嵌入式 worker，跑在另一個執行緒）等 fixture。",
       ] },
       C(String.raw`# 測試重試行為（改寫自官方 Testing 頁，未執行）
-from unittest.mock import patch
-from pytest import raises
-from celery.exceptions import Retry
+from unittest.mock import patch  # patch：測試期間暫時把某個物件換成替身
+from pytest import raises  # raises：測試時斷言某段程式一定會丟出指定例外
+from celery.exceptions import Retry  # Retry：表示任務要重試的例外
 
 # 把任務裡用到的依賴與 retry 方法都換成 mock
+# test_failure：測試下單失敗時任務會觸發重試（官方範例，用替身取代真正的呼叫）
 @patch('proj.tasks.Product.order')
 @patch('proj.tasks.send_order.retry')
 def test_failure(send_order_retry, product_order):
@@ -540,7 +545,9 @@ def test_failure(send_order_retry, product_order):
         send_order(product.pk, 3, Decimal(30.6))   # 官方範例的呼叫
 
 # 用嵌入式 worker 做整合測試（官方範例）
+# test_create_task：測試在 worker 上動態新增一個任務並執行
 def test_create_task(celery_app, celery_worker):
+    # mul：測試裡臨時定義的任務，輸入兩個數，回傳相乘結果
     @celery_app.task
     def mul(x, y):
         return x * y

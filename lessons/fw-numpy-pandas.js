@@ -26,7 +26,7 @@ window.LESSON = window.LESSON || {};
       "**官方提醒：** NumPy 和 Python 內建序列一樣是**從 0 開始編號**。另外一個我的補充（不是官方入門頁的話）：整數的預設位元數依平台與版本而定，較舊的 Windows 版本預設整數可能是 32 位元，所以不要把預設型別當成固定的，需要時自己指定 dtype。",
       "**建立陣列**",
       C(String.raw`# 建立陣列的常用方法（改寫自官方 NumPy 入門頁，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 a = np.array([1, 2, 3, 4, 5, 6])                    # 從 list 建立，一維
 m = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])   # 二維，3 列 4 欄
@@ -50,7 +50,7 @@ m.ndim, m.shape, m.size, m.dtype     # 2, (3, 4), 12, int64（依平台）`),
       "**索引與切片**",
       "索引的寫法和 Python 的 list 很像，但二維以上用**同一組中括號、逗號分隔**，例如 m[1, 3]。官方也展示了**布林選取**：用條件直接篩出符合的元素，這在整理資料時很常用。",
       C(String.raw`# 索引、切片與布林選取（改寫自官方範例，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 data = np.array([1, 2, 3])
 data[1]        # 2
@@ -68,7 +68,7 @@ m[(m > 2) & (m < 11)]         # 多個條件用 & 連接並各自加括號（不
       "**改形狀（reshape）與加軸**",
       "reshape 在**不改資料**的前提下改變形狀。官方規則：**新形狀的元素總數必須和原本一樣**。常見用途是把一長排數字排成表格，或把一個向量變成『一列』或『一欄』（用 np.newaxis 加一個維度）。加軸在下一課的廣播會很重要。",
       C(String.raw`# reshape 與加軸（改寫自官方範例，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 a = np.arange(6)            # [0, 1, 2, 3, 4, 5]，shape (6,)
 b = a.reshape(3, 2)         # 3 列 2 欄；元素總數 6 = 3 乘 2，所以合法
@@ -81,7 +81,7 @@ np.expand_dims(v, axis=1).shape   # (6, 1)   另一種寫法，效果相同`),
       "**view 與 copy：改一個，另一個也變**",
       "**切片回傳的是 view（同一塊記憶體的另一個視窗），不是複製。** 官方明說：修改 view 也會修改原陣列。要真的複製用 .copy()。flatten() 回傳**複製**、ravel() 回傳 **view**，官方也特別對比了這兩個。這和 [[fw-05]] 的『NumPy 橋接共用記憶體』是同一類陷阱。",
       C(String.raw`# view 與 copy（改寫自官方概念，數值為我自己設計的小例子，輸出為手算，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 a = np.array([10, 20, 30, 40])
 b = a[1:3]          # 切片是 view：b 與 a 共用同一塊記憶體
@@ -115,7 +115,7 @@ r = x.ravel()       # view：改 r 會影響 x（官方對比的重點）`),
       "**向量化運算與聚合**",
       "兩個形狀相同的陣列相加、相乘，是**逐元素**運算。注意：**乘號（星號）是逐元素相乘，不是矩陣乘法**（官方的 matmul 頁也只說『純量乘法請用乘號』）。統計函式（sum、mean、min、max、std、prod）沒指定 axis 就對整個陣列算；指定 axis 就沿著那個方向壓縮。",
       C(String.raw`# 聚合與 axis（改寫自官方範例，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 b = np.array([[1, 1], [2, 2]])
 b.sum()           # 6        沒給 axis：整個陣列
@@ -144,7 +144,7 @@ data.max(axis=1)  # [2, 5, 6] 每一列的最大值
 #
 #   A (2d array):      2 x 1
 #   B (3d array):  8 x 4 x 3      →  由右邊數第二個：1 與 4 可以；但 2 與 8 不行 → 不相容
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 a = np.array([[0.0, 0.0, 0.0],
               [10.0, 10.0, 10.0],
@@ -166,8 +166,9 @@ col[:, np.newaxis] + b   # (4, 1) 加 (3,) → (4, 3)，每一列加上 b`),
       "**餘弦相似度：自己算一次**",
       "餘弦相似度 = 兩向量內積 除以 兩向量長度相乘。結果在 1（方向相同）到 -1（方向相反）之間，0 是互相垂直（無關）。embedding 搜尋最常用它（概念回看 [[ai-08]]）。",
       C(String.raw`# 餘弦相似度：單一對、與一批（概念為通用數學，數值為手算，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
+# cosine：餘弦相似度。輸入兩個向量；回傳內積除以兩者長度的乘積，越接近 1 表示方向越相近
 def cosine(a, b):
     a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
     return a @ b / (np.linalg.norm(a) * np.linalg.norm(b))   # 內積 除以 長度的乘積
@@ -193,7 +194,7 @@ scores = docs_n @ query_n         # shape (3,)
       "**取前幾名：argsort**",
       "argsort 回傳的是『排序後的**索引**』，不是排好的值。預設**由小到大**。官方寫：一維時 a[index_array] 就得到排好的 a；多維用 np.take_along_axis。要取分數最高的前 k 名，一個常見做法是 argsort 之後反過來取最後 k 個。官方頁面沒有提供 top-k 的食譜，所以下面這個寫法是我的整理，不是官方範例。另外官方提到新版本 argsort 有 descending 參數（2.5 新增），你的 NumPy 版本不一定有，用反轉切片最通用。",
       C(String.raw`# 取分數最高的前 k 名（通用做法，我的整理；數值為手算，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 scores = np.array([0.2, 0.9, 0.5])
 order = np.argsort(scores)        # 由小到大的索引：[0, 2, 1]（0.2 最小，0.9 最大）
@@ -208,7 +209,7 @@ top2 = top[:2]                    # 取前 2 名：[1, 2]，也就是文件 1 �
       "**亂數：用 Generator，不用舊的 np.random 函式**",
       "官方 Random sampling 頁建議：**用 np.random.default_rng() 建立 Generator，再呼叫它的方法**取樣。傳入固定的種子（seed）可以重現結果；不給種子，每次執行都不一樣。官方也說舊的 np.random.xxx 函式與 RandomState 沒有要移除，但建議能轉就轉。**另一個重要提醒：這些亂數『不適用於安全或密碼用途』，那種場合請用標準函式庫的 secrets 模組。**",
       C(String.raw`# 亂數（改寫自官方 Random sampling 頁，未執行）
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 rng = np.random.default_rng(seed=42)   # 固定種子：每次執行結果相同，方便重現
 rng.random()                           # 一個 [0, 1) 的浮點數
@@ -245,8 +246,8 @@ rng.integers(low=0, high=10, size=5)   # 5 個整數，範圍 0 到 9（上界�
         "**index（索引）：** 每一列的標籤。預設是 0 開始的整數，也可以是日期、名字。**用標籤選取時要看標籤，不是看位置**，這是 loc 與 iloc 的差別。",
       ] },
       C(String.raw`# 建立與檢視（改寫自官方 10 minutes to pandas，未執行）
-import numpy as np
-import pandas as pd
+import numpy as np  # numpy：陣列與數值運算
+import pandas as pd  # pandas：表格資料處理
 
 s = pd.Series([1, 3, 5, np.nan, 6, 8])       # 一欄資料；np.nan 代表缺值
 
@@ -298,8 +299,8 @@ df2[df2["E"].isin(["two", "four"])]  # 欄位值屬於某個集合`),
         ["chunksize", "分批讀（回傳可迭代物件）", "大檔案不想一次載入時用，一次處理一批"],
       ] } },
       C(String.raw`# 讀寫 CSV（改寫自官方 IO 頁，未執行；檔名都是示意）
-import numpy as np
-import pandas as pd
+import numpy as np  # numpy：陣列與數值運算
+import pandas as pd  # pandas：表格資料處理
 
 # 只讀需要的欄位並指定型別：省記憶體，也避免混合型別
 df = pd.read_csv("data.csv", usecols=["id", "text", "score"],
@@ -347,8 +348,8 @@ df.to_csv("out.csv", index=False)
       "**第一行就藏著一個大陷阱：** 官方明說整數欄位一旦出現缺值，會被轉成浮點數（因為 NaN 是浮點數）。例如 [1, 2, 缺] 會變成 [1.0, 2.0, NaN]。想保留整數，要用 nullable 的 Int64（大寫 I）。這會讓你的 ID 或計數欄位悄悄變成小數。",
       "**偵測缺值要用 isna()，不能用 == 比較。** 官方列出：None == None 是 True，但 np.nan == np.nan 是 **False**，pd.NaT == pd.NaT 也是 False，pd.NA == pd.NA 的結果是 NA（不是 True）。所以 df[\"x\"] == np.nan 永遠抓不到缺值。isna() 與 notna() 能偵測 np.nan、NaT、NA 以及 None。",
       C(String.raw`# 偵測、丟棄、填補缺值（改寫自官方 Missing data 頁，未執行）
-import numpy as np
-import pandas as pd
+import numpy as np  # numpy：陣列與數值運算
+import pandas as pd  # pandas：表格資料處理
 
 # 整數遇到缺值會變浮點數（官方範例）
 pd.Series([1, 2], dtype=np.int64).reindex([0, 1, 2])
@@ -384,8 +385,8 @@ df.ffill(limit=1)        # 最多連續補 1 格
       "**pandas 3 的字串與缺值**",
       "pandas 3 把字串欄位的預設型別改成新的 **str** 型別，缺值一律是 **NaN**（官方 Migration 頁）。以前字串欄位預設是 object，缺值可能是 None；現在不一樣。因此：1. 檢查字串型別別再寫 ser.dtype == \"object\"（pandas 3 會失敗），官方建議用 pd.api.types.is_string_dtype；2. 對字串欄位塞入非字串值（例如 2.5）會 TypeError，要先轉成 object；3. astype(\"str\") 在 pandas 3 會保留缺值，不再把 NaN 變成字串 \"nan\"。這些變動第 6 課會一起整理。",
       C(String.raw`# 其他常用的缺值操作（改寫自官方範例，未執行）
-import numpy as np
-import pandas as pd
+import numpy as np  # numpy：陣列與數值運算
+import pandas as pd  # pandas：表格資料處理
 
 df = pd.DataFrame({"a": [1.0, np.nan, 3.0], "b": ["x", None, "z"]})
 
@@ -427,7 +428,7 @@ df2 = pd.read_csv("data.csv").convert_dtypes()`),
       ] } },
       "官方還特別說：**用內建的 groupby 方法拆成幾步，比用 apply 搭配自訂 Python 函式更有效率**；apply 要自己猜結果該是彙整、轉換還是過濾，『有時會猜錯』，非必要不要用。",
       C(String.raw`# groupby 的彙整（改寫自官方 Group by 頁，欄位與資料為我設計，未執行）
-import pandas as pd
+import pandas as pd  # pandas：表格資料處理
 
 # 假設的評估結果表：每一列是「某模型在某題的分數」
 results = pd.DataFrame({
@@ -452,7 +453,7 @@ results.groupby("model").agg(
 # as_index=False：讓分組的鍵變成一般欄位，而不是列標籤（做後續 merge 常常需要）
 results.groupby("model", as_index=False)["score"].mean()`),
       C(String.raw`# transform：結果和原資料「同樣多列」，常用來加一個「組內統計」欄位（改寫自官方，未執行）
-import pandas as pd
+import pandas as pd  # pandas：表格資料處理
 
 results = pd.DataFrame({
     "model": ["A", "A", "B", "B", "B"],
@@ -480,7 +481,7 @@ results.groupby("model", dropna=False)["score"].mean()`),
       ] } },
       "**merge 的 how 參數與 SQL 的對照（官方）：** left（只保留左表的鍵）、right（只保留右表的鍵）、outer（兩邊鍵的聯集，等於 FULL OUTER JOIN）、inner（兩邊鍵的交集，**merge 的預設**）、cross（笛卡爾積，每一列配每一列）。若你熟悉 [[code-03]]，概念完全一樣。",
       C(String.raw`# concat 與 merge（改寫自官方 Merge 頁，資料為我設計，未執行）
-import pandas as pd
+import pandas as pd  # pandas：表格資料處理
 
 # --- concat：疊起來。官方提醒：不要在迴圈裡一直 concat，會一直複製資料 ---
 # 正確：先把每份資料收進 list，最後只 concat 一次
@@ -502,7 +503,7 @@ pd.merge(docs, hits, on="doc_id", how="outer", indicator=True)
 # pd.merge(left, right, on="k", suffixes=("_l", "_r"))`),
       { note: "官方的警告：用重複的鍵做 merge 會讓結果的列數大幅增加，甚至記憶體溢位。如果一個鍵在兩張表都出現多次，會得到這些列的**笛卡爾積**。官方例子：左表 B 欄 [2, 2]、右表 B 欄 [2, 2, 2]，outer merge 得到 6 列（2 乘 3）；cross join 兩張 4 列的表得到 16 列。**預防方法：merge 時加 validate 參數**，例如 validate=\"one_to_one\"，鍵不唯一就直接報 MergeError，不會悄悄爆量。官方說這個檢查可以防止記憶體溢位與非預期的鍵重複。另外：用欄位合併欄位時，兩邊原本的索引會被丟掉。" },
       C(String.raw`# validate：在 merge 前先擋住「鍵有重複」（改寫自官方，未執行）
-import pandas as pd
+import pandas as pd  # pandas：表格資料處理
 
 docs = pd.DataFrame({"doc_id": [1, 2, 3], "title": ["甲", "乙", "丙"]})
 hits = pd.DataFrame({"doc_id": [2, 2, 3], "score": [0.9, 0.8, 0.7]})   # doc_id 2 出現兩次
@@ -544,7 +545,7 @@ len(merged)    # 手算：doc 1 一列（缺值）、doc 2 兩列、doc 3 一列
         "**選出來的欄位屬性不保留：** 每次選欄都是新的 Series，官方建議把中繼資料存在 df.attrs。",
       ] },
       C(String.raw`# Copy-on-Write 下的正確寫法（改寫自官方 Migration 頁，未執行）
-import pandas as pd
+import pandas as pd  # pandas：表格資料處理
 
 df = pd.DataFrame({"foo": [1, 2, 3], "bar": [4, 5, 6]})
 
@@ -591,14 +592,15 @@ arr[0, 0] = 0               # 複製後可寫`),
         ["看 PyTorch 或 Transformers 的程式", "shape、axis、廣播、view 與 copy", "第 1、2 課"],
       ] } },
       C(String.raw`# 一個把 NumPy 與 pandas 串起來的小流程（概念示意，為我設計，未執行）
-import numpy as np
-import pandas as pd
+import numpy as np  # numpy：陣列與數值運算
+import pandas as pd  # pandas：表格資料處理
 
 # 假設：doc_df 有文件資訊（doc_id、title），doc_vecs 是同順序的 embedding 矩陣
 #   doc_df.shape   → (N, 2)
 #   doc_vecs.shape → (N, D)   N 份文件，每份 D 維
 # query_vec.shape  → (D,)
 
+# search：向量檢索。輸入文件表、文件向量、查詢向量與 k；回傳相似度最高的前 k 份文件
 def search(doc_df, doc_vecs, query_vec, k=3):
     # 1. 正規化後做一次矩陣乘法，得到每份文件的餘弦相似度（第 2 課）
     d = doc_vecs / np.linalg.norm(doc_vecs, axis=1, keepdims=True)

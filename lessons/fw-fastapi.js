@@ -39,7 +39,7 @@ window.LESSON = window.LESSON || {};
       ] },
       "**為什麼說『型別提示驅動』是它的核心？** 你只寫一次函式簽名，FastAPI 就同時拿它做四件事：解析參數來源、驗證資料、產生 API 文件（/docs 頁面）、給編輯器補全。換句話說，型別提示在這裡不是註解，而是**會被執行階段讀取的設定**。",
       C(String.raw`from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 app = FastAPI()
 
@@ -47,6 +47,7 @@ class ChatRequest(BaseModel):
     message: str          # 這行同時是：型別檢查、驗證規則、文件欄位說明
     max_tokens: int = 256 # 有預設值 = 選填；沒預設值 = 必填
 
+# chat：處理 POST /chat。輸入：驗證過的請求本文 req；輸出：回傳 dict，FastAPI 會自動轉成 JSON
 @app.post("/chat")
 def chat(req: ChatRequest):   # FastAPI 看到參數型別是 BaseModel，就知道要從請求本文（JSON）解析
     # 走到這裡時，req 一定是驗證過的 ChatRequest，不必再手動檢查欄位存在與型別
@@ -71,23 +72,26 @@ def chat(req: ChatRequest):   # FastAPI 看到參數型別是 BaseModel，就知
         "依賴函式（本組第 4 課）遵守同樣規則：def 的依賴會跑在執行緒池，async def 的跑在事件迴圈。兩種可以自由混用。",
       ] },
       C(String.raw`import time
-from fastapi import FastAPI
+from fastapi import FastAPI  # FastAPI：建立應用程式物件
 
 app = FastAPI()
 
+# bad：錯誤示範。async def 裡用了會阻塞的 time.sleep，整個事件迴圈被卡住
 @app.get("/bad")
 async def bad():
     time.sleep(5)        # 錯誤示範：在 async def 裡阻塞，這 5 秒內整個伺服器都無法處理其他請求
     return {"ok": True}
 
+# good_sync：一般 def，FastAPI 會放進執行緒池執行，阻塞只佔一條執行緒
 @app.get("/good-sync")
 def good_sync():
     time.sleep(5)        # 一般 def 會跑在執行緒池，只佔用一條執行緒，其他請求照常處理
     return {"ok": True}
 
+# good_async：async def 搭配 await 非同步等待，等待時事件迴圈可以處理別的請求
 @app.get("/good-async")
 async def good_async():
-    import asyncio
+    import asyncio  # asyncio：非同步執行與等待
     await asyncio.sleep(5)   # 非同步的等待：等的時候把控制權還給事件迴圈
     return {"ok": True}`),
       { tip: "判斷口訣：函式裡有沒有『await』？有就用 async def，而且裡面呼叫的東西都要是非同步版本；沒有就用 def。最危險的組合是『async def 加上同步的網路呼叫』。" },
@@ -114,8 +118,8 @@ async def good_async():
         "**預設值預設不會被驗證：**要驗證預設值得設 validate_default=True。",
       ] },
       C(String.raw`from typing import Annotated
-from uuid import uuid4
-from pydantic import BaseModel, Field
+from uuid import uuid4  # uuid4：產生隨機唯一編號
+from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
 class Document(BaseModel):
     # default_factory：每建立一個實例就呼叫一次，所以每份文件都有不同的 id
@@ -144,8 +148,8 @@ scores: list[PositiveInt]   # 每個元素都必須大於 0`),
         ["wrap", "拿到一個 handler，可在 Pydantic 驗證前後都插手", "需要攔截、記錄或失敗時改用備案"],
       ] } },
       C(String.raw`from typing import Annotated
-from typing_extensions import Self
-from pydantic import AfterValidator, BaseModel, field_validator, model_validator
+from typing_extensions import Self  # Self：標註『回傳自己這個類別』
+from pydantic import AfterValidator, BaseModel, field_validator, model_validator  # AfterValidator：型別驗證完之後再做的檢查；BaseModel：資料模型的基底類別，會自動驗證欄位；field_validator：針對單一欄位寫自訂驗證；model_validator：針對整個模型（跨欄位）寫自訂驗證
 
 # 寫法一：Annotated + AfterValidator，驗證函式可以跨模型重複使用
 def must_be_even(value: int) -> int:
@@ -160,6 +164,7 @@ class A(BaseModel):
 class Query(BaseModel):
     keywords: list[str]
 
+    # split_if_string：before 驗證器。輸入可能是字串或 list；字串就用逗號拆成 list，否則原樣回傳
     @field_validator("keywords", mode="before")   # before：輸入還是原始值，可能是字串
     @classmethod
     def split_if_string(cls, value):
@@ -172,6 +177,7 @@ class Signup(BaseModel):
     password: str
     confirm: str
 
+    # check_match：模型建立完成後檢查兩個欄位是否一致；一致回傳 self，不一致丟 ValueError
     @model_validator(mode="after")                # after：實例方法，等同建立完成後的檢查，必須回傳 self
     def check_match(self) -> Self:
         if self.password != self.confirm:
@@ -244,12 +250,13 @@ patch.model_dump(exclude_unset=True)    # {"name": "小明"}
       { tip: "實作 PATCH 時的標準做法：用 model_dump(exclude_unset=True) 取出『使用者真的想改的欄位』，再合併到資料庫的舊資料。如果直接用 model_dump()，沒傳的欄位會被預設值覆蓋掉。" },
       "**field_serializer：自訂某些欄位的輸出格式。** 模式有 plain（預設，完全取代內建序列化）與 wrap（拿到 handler，可在前後加工）。常見用途：把 datetime 輸出成特定格式、把 Enum 輸出成顯示名稱。",
       C(String.raw`from datetime import datetime
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, field_serializer  # BaseModel：資料模型的基底類別，會自動驗證欄位；field_serializer：自訂某欄位輸出時的格式
 
 class Event(BaseModel):
     name: str
     at: datetime
 
+    # fmt_time：序列化（輸出）時使用。輸入 datetime，輸出格式化後的字串
     @field_serializer("at")                 # plain 模式：這個欄位輸出時完全由這個函式決定
     def fmt_time(self, value: datetime) -> str:
         return value.strftime("%Y-%m-%d %H:%M")   # 輸出成人類易讀的格式`),
@@ -260,7 +267,7 @@ class Event(BaseModel):
         "**有判別欄位的聯合（discriminated union）：**每個成員有一個 Literal 型別的共同欄位，Pydantic 看這個欄位就知道該用哪個成員，只驗證那一個。**官方通常建議用這種**，效率較高，錯誤訊息也更清楚（會指出 pet.dog.barks 這種路徑）。",
       ] },
       C(String.raw`from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
 # 假設 LLM 被要求輸出『下一步動作』，可能是兩種形狀之一
 class SearchAction(BaseModel):
@@ -288,6 +295,7 @@ class User(BaseModel):
 # 模組載入時建立一次，之後重複使用（不要在每次請求裡重新建立）
 USER_LIST = TypeAdapter(list[User])
 
+# parse_users：把原始 dict 列表驗證並轉成 User 物件列表；任何一筆不合格就丟驗證錯誤
 def parse_users(raw: list[dict]) -> list[User]:
     # 等同於模型的 model_validate，但適用任何型別
     return USER_LIST.validate_python(raw)
@@ -311,7 +319,7 @@ def parse_users(raw: list[dict]) -> list[User]:
       "**依賴注入（Dependency Injection）是 FastAPI 的第二根支柱。** 白話：你的路由函式不要自己去『找』資料庫連線、目前登入的使用者、設定值，而是在簽名裡**宣告『我需要什麼』**，由 FastAPI 在呼叫你之前把它準備好、傳進來。好處：共用邏輯只寫一次、路由函式專心處理業務、**測試時可以把依賴換成假的**（本組第 7 課）。",
       "**最小例子（官方）：** 依賴就是一個函式，參數規則和路由函式一樣（可以有查詢參數、標頭等）。用 Depends() 掛上去，**傳函式本身，不要加括號呼叫**。",
       C(String.raw`from typing import Annotated
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 
 app = FastAPI()
 
@@ -324,6 +332,7 @@ async def common_parameters(q: str | None = None, skip: int = 0, limit: int = 10
 async def read_items(commons: Annotated[dict, Depends(common_parameters)]):
     return commons          # FastAPI 先呼叫 common_parameters，把回傳值放進 commons
 
+# read_users：GET /users/。和 read_items 共用同一個依賴
 @app.get("/users/")
 async def read_users(commons: Annotated[dict, Depends(common_parameters)]):
     return commons          # 兩個端點共用同一段邏輯
@@ -331,15 +340,17 @@ async def read_users(commons: Annotated[dict, Depends(common_parameters)]):
 # 型別別名：避免到處重複寫 Depends(...)
 CommonsDep = Annotated[dict, Depends(common_parameters)]
 
+# read_things：GET /things/。用型別別名 CommonsDep 簡化依賴寫法
 @app.get("/things/")
 async def read_things(commons: CommonsDep):
     return commons`),
       "**依賴可以有依賴（子依賴），形成一棵樹，FastAPI 自動由下往上解析。** 官方範例：query_or_cookie_extractor 依賴 query_extractor，路由只要宣告最上層那個。**同一個依賴在同一個請求裡被多次用到時，只會執行一次，結果會被快取並共用**（官方：每個請求各自快取，下個請求會重新執行）。需要每次都重新執行時，用 Depends(函式, use_cache=False)。",
       C(String.raw`from typing import Annotated
-from fastapi import Cookie, Depends, FastAPI
+from fastapi import Cookie, Depends, FastAPI  # Cookie：從 cookie 取值；Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 
 app = FastAPI()
 
+# query_extractor：最底層的依賴，只負責取出查詢參數 q 並回傳
 def query_extractor(q: str | None = None):
     return q
 
@@ -352,6 +363,7 @@ def query_or_cookie_extractor(
         return last_query       # 沒有 q 就退回 cookie 裡的上一次查詢
     return q
 
+# read_query：GET /items/。只宣告最上層依賴，子依賴由 FastAPI 自動往下解析
 @app.get("/items/")
 async def read_query(query_or_default: Annotated[str, Depends(query_or_cookie_extractor)]):
     # 路由只宣告最上層；FastAPI 會先解 query_extractor，再把結果傳給 query_or_cookie_extractor
@@ -364,6 +376,7 @@ async def read_query(query_or_default: Annotated[str, Depends(query_or_cookie_ex
         self.skip = skip
         self.limit = limit
 
+# list_docs：GET /docs-list/。page 是 Pagination 的實例，由 FastAPI 建立並注入
 @app.get("/docs-list/")
 async def list_docs(page: Annotated[Pagination, Depends()]):   # 空的 Depends()：用上面註記的型別
     return {"skip": page.skip, "limit": page.limit}`),
@@ -376,13 +389,15 @@ async def list_docs(page: Annotated[Pagination, Depends()]):   # 空的 Depends(
         "**scope 參數：**Depends(函式, scope=\"function\") 讓清理在路由函式回傳之後、回應送出之前執行；預設的 request 則是回應送出之後。官方規則：request 範圍的依賴只能有 request 範圍的子依賴。",
       ] },
       C(String.raw`from typing import Annotated
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 
 app = FastAPI()
 
 class DBSession:               # 假的資料庫工作階段，只為了示範資源生命週期
+    # close：示範用，真實情況這裡會關閉資料庫連線
     def close(self): ...
 
+# get_db：yield 依賴。yield 之前建立資源、yield 出去的值被注入、finally 裡一定清理
 async def get_db():
     db = DBSession()           # 準備：每個請求建立一個
     try:
@@ -390,6 +405,7 @@ async def get_db():
     finally:
         db.close()             # 清理：不論成功或失敗，請求結束後一定關閉
 
+# rows：GET /rows。db 是 get_db yield 出來的工作階段
 @app.get("/rows")
 async def rows(db: Annotated[DBSession, Depends(get_db)]):
     return {"ok": True}        # 路由拿到的 db 就是 get_db yield 出來的那個`),
@@ -441,9 +457,9 @@ class Settings(BaseSettings):
       ] },
       "**在 FastAPI 裡的標準接法（官方）：** 不要在模組層級建立全域的 settings，而是寫一個 get_settings 依賴，並用 functools.lru_cache 快取。原因：沒有快取的話，每個請求都會重新建立 Settings、重新讀 .env 檔。有了 lru_cache，函式永遠回傳同一個物件（幾乎像全域變數），同時**它還是一個依賴，測試時可以覆寫**（本組第 7 課）。",
       C(String.raw`from functools import lru_cache
-from typing import Annotated
-from fastapi import Depends, FastAPI
-from pydantic_settings import BaseSettings
+from typing import Annotated  # Annotated：替型別附加額外資訊
+from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
+from pydantic_settings import BaseSettings  # BaseSettings：從環境變數與 .env 讀設定的基底類別
 
 class Settings(BaseSettings):
     app_name: str = "Awesome API"
@@ -451,10 +467,12 @@ class Settings(BaseSettings):
 
 app = FastAPI()
 
+# get_settings：回傳設定物件；有 lru_cache，所以只會建立一次並重複使用
 @lru_cache                     # 第一次呼叫建立物件並讀取 .env，之後都回傳同一個
 def get_settings() -> Settings:
     return Settings()
 
+# info：GET /info。settings 由依賴注入，回傳其中的 app_name
 @app.get("/info")
 async def info(settings: Annotated[Settings, Depends(get_settings)]):
     # 路由不直接 import 全域設定，而是宣告『我需要設定』，由依賴系統交給它
@@ -481,7 +499,7 @@ async def info(settings: Annotated[Settings, Depends(get_settings)]):
       "**回應模型（response_model）與回傳型別註記：** 官方說明 FastAPI 會用它做四件事：**驗證**回傳的資料（不符合就回伺服器錯誤，而不是送出錯誤資料，因為這是你程式的 bug）、**產生** JSON Schema 給 API 文件、**序列化**成 JSON、以及**過濾**，只保留模型裡有的欄位。",
       "**最重要的用途：防止洩漏欄位。** 官方範例是使用者建立 API：輸入模型有 password，輸出模型沒有。就算路由不小心回傳了含密碼的物件，過濾也會把它拿掉：",
       C(String.raw`from typing import Any
-from fastapi import FastAPI
+from fastapi import FastAPI  # FastAPI：建立應用程式物件
 from pydantic import BaseModel, EmailStr   # EmailStr 需要另外安裝 email-validator 套件
 
 app = FastAPI()
@@ -499,6 +517,7 @@ class UserOut(BaseModel):         # 輸出：沒有密碼
 
 # response_model 指定『對外的形狀』；函式註記成 Any 是因為實際回傳的 UserIn 與 UserOut 不是同一型別，
 # 這樣編輯器的型別檢查不會抱怨，過濾仍由 response_model 負責
+# create_user：POST /user/。輸入含密碼的 UserIn；response_model 會把輸出過濾成沒有密碼的 UserOut
 @app.post("/user/", response_model=UserOut)
 async def create_user(user: UserIn) -> Any:
     return user                   # 回傳含密碼的物件，但用戶端只會看到 UserOut 的欄位`),
@@ -520,12 +539,13 @@ async def create_user(user: UserIn) -> Any:
         "**處理 Starlette 的 HTTPException：**FastAPI 的 HTTPException 是 Starlette 的子類別。想攔截所有 HTTP 例外（含 Starlette 內部丟的，例如 404 找不到路由），要註冊在 starlette.exceptions.HTTPException 上。",
       ] },
       C(String.raw`from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse  # JSONResponse：自訂 JSON 回應內容與狀態碼
 
 app = FastAPI()
 
 # 自訂例外：代表『上游模型服務失敗』這種業務情境
 class UpstreamModelError(Exception):
+    # __init__：建立例外時記下失敗原因，之後交給例外處理器使用
     def __init__(self, reason: str):
         self.reason = reason
 
@@ -537,6 +557,7 @@ async def upstream_error_handler(request: Request, exc: UpstreamModelError):
         content={"error": "model_unavailable", "reason": exc.reason},
     )
 
+# read_item：GET /items/{item_id}。找不到就 raise HTTPException 回 404，找到就回傳該項目
 @app.get("/items/{item_id}")
 async def read_item(item_id: str):
     if item_id != "foo":
@@ -545,10 +566,11 @@ async def read_item(item_id: str):
     return {"item": item_id}`),
       "**中介層（middleware）：每個請求都要經過的橫切邏輯。** 用 @app.middleware(\"http\") 註冊，函式收到 request 與 call_next；await call_next(request) 之前的程式在路由之前執行，之後的程式在回應產生之後執行。典型用途：量測處理時間、加上請求編號、記錄存取日誌。官方範例用 time.perf_counter() 量時間，並加上 X-Process-Time 標頭。",
       C(String.raw`import time
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request  # FastAPI：建立應用程式物件；Request：代表一個進來的請求
 
 app = FastAPI()
 
+# add_process_time_header：中介層。輸入請求與 call_next；輸出加了 X-Process-Time 標頭的回應
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start = time.perf_counter()              # 請求進來時記下時間（官方用 perf_counter，比 time.time 精準）
@@ -574,24 +596,26 @@ async def add_process_time_header(request: Request, call_next):
       "**依賴注入最大的回報在測試。** 因為路由函式只『宣告需要什麼』，測試時就能把真的資料庫、真的 LLM 用戶端、真的認證服務換成假的，不需要碰網路，也不花錢。",
       "**TestClient（官方）：** 它是以 HTTPX 為基礎的測試用戶端（所以要安裝 httpx 與 pytest），從 fastapi.testclient 匯入。**測試函式是一般的 def，不是 async def，呼叫也不用 await**，因此可以直接用 pytest。測試函式名稱用 test_ 開頭，用 assert 檢查。需要測試 async 的資料庫呼叫等情況，官方另有 Async Tests 說明。",
       C(String.raw`from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # TestClient：不開伺服器、直接在程式裡呼叫應用以便測試
 
 app = FastAPI()
 
+# read_main：GET /，回傳固定訊息
 @app.get("/")
 async def read_main():
     return {"msg": "Hello World"}
 
 client = TestClient(app)          # 不需要真的啟動伺服器，直接在程式裡呼叫應用
 
+# test_read_main：pytest 測試。用 TestClient 呼叫 / 並檢查狀態碼與內容
 def test_read_main():             # 一般 def，不用 await
     response = client.get("/")    # 用法像 httpx
     assert response.status_code == 200
     assert response.json() == {"msg": "Hello World"}`),
       "**覆寫依賴（app.dependency_overrides，官方）：** 它是一個普通字典，**鍵是原本的依賴函式，值是用來取代的函式**。被覆寫的依賴（連同它的子依賴）完全不會執行。典型情境：外部認證服務很慢或按次計費，測試時覆寫成回傳假使用者；或把設定換成測試用的值。可以覆寫應用裡任何地方用到的依賴。測完要重置：app.dependency_overrides = {}；只想在部分測試覆寫，就在測試開頭設定、結尾重置。",
       C(String.raw`from typing import Annotated
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
+from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
+from fastapi.testclient import TestClient  # TestClient：不開伺服器、直接在程式裡呼叫應用以便測試
 
 app = FastAPI()
 
@@ -599,6 +623,7 @@ app = FastAPI()
 async def get_current_user():
     return {"name": "real-user"}
 
+# me：GET /me。user 由依賴注入，直接回傳
 @app.get("/me")
 async def me(user: Annotated[dict, Depends(get_current_user)]):
     return user
@@ -609,6 +634,7 @@ client = TestClient(app)
 async def fake_user():
     return {"name": "test-user"}
 
+# test_me_with_fake_user：覆寫依賴後呼叫 /me，確認路由拿到的是假使用者
 def test_me_with_fake_user():
     app.dependency_overrides[get_current_user] = fake_user   # 鍵：原依賴；值：替代品
     try:
@@ -619,21 +645,26 @@ def test_me_with_fake_user():
       "**測 LLM 路由的標準做法：** 把『呼叫模型』包成一個依賴（回傳一個有 generate 方法的物件），正式環境注入真的用戶端；測試時覆寫成回傳固定文字的假物件。這樣你能測：參數驗證、錯誤處理、回應格式、串流是否正確組裝，而不需要金鑰與網路。（這也呼應 [[ai-16]] 講的：模型的非確定性不要讓它污染你對『服務本身』的測試。）",
       C(String.raw`# 設計：把模型用戶端包成依賴
 class LLMClient:
+    # generate：模型用戶端的方法（示意）。輸入提示詞，輸出文字；正式版會呼叫真的模型 API
     async def generate(self, prompt: str) -> str:
         ...                                   # 正式版：呼叫真的模型 API
 
+# get_llm：依賴。回傳模型用戶端；測試時會被覆寫成假的
 def get_llm() -> LLMClient:
     return LLMClient()
 
+# ask：POST /ask。輸入 prompt，模型用戶端由依賴取得，回傳模型的答案
 @app.post("/ask")
 async def ask(prompt: str, llm: Annotated[LLMClient, Depends(get_llm)]):
     return {"answer": await llm.generate(prompt)}
 
 # 測試：換成回傳固定字串的假物件
 class FakeLLM:
+    # generate：測試用的假版本。不呼叫網路，永遠回傳固定字串
     async def generate(self, prompt: str) -> str:
         return "固定的測試回答"                # 沒有網路、沒有費用、結果可預期
 
+# test_ask：把 get_llm 覆寫成 FakeLLM，呼叫 /ask 並檢查答案，最後重置覆寫
 def test_ask():
     app.dependency_overrides[get_llm] = lambda: FakeLLM()
     try:

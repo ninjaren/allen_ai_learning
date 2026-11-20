@@ -39,7 +39,7 @@ window.LESSON = window.LESSON || {};
       ] } },
       "**官方最小範例（overview 頁）：** 一個只有一個節點的圖。重點是看出四個動作：定義節點函式、建立 StateGraph、連邊、compile。",
       C(String.raw`# 前置：pip install -U langgraph
-from langgraph.graph import StateGraph, MessagesState, START, END
+from langgraph.graph import StateGraph, MessagesState, START, END  # StateGraph：用節點與邊組成的狀態圖；MessagesState：內建的狀態類型：以訊息列表當狀態；START：LangGraph 圖的起點標記；END：LangGraph 圖的終點標記
 
 # 節點就是一個函式：吃進目前的狀態，回傳『要更新的部分』（不是整個狀態）
 def mock_llm(state: MessagesState):
@@ -83,7 +83,7 @@ graph.invoke({"messages": [{"role": "user", "content": "hi!"}]})`),
       ] } },
       "**更新規則：預設是覆蓋；要合併就要掛上 reducer。** 節點回傳的是『部分更新』。如果欄位沒有 reducer，新值直接覆蓋舊值；如果用 Annotated 掛上 reducer，新值會依 reducer 的方式合併。這是最容易搞錯的概念，因為『我明明回傳了新訊息，舊訊息怎麼不見了』幾乎都是忘了 reducer。",
       C(String.raw`import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, TypedDict  # Annotated：替型別附加額外資訊；TypedDict：用字典形式定義有固定欄位的型別
 
 class State(TypedDict):
     foo: int                                   # 沒有 reducer：新值覆蓋舊值
@@ -95,10 +95,10 @@ class State(TypedDict):
 #   foo 被覆蓋成 2；bar 因為有 reducer，變成接在一起`),
       "**聊天訊息用專用的 reducer：add_messages。** 官方說明它會附加新訊息，並且**依訊息 ID 更新已存在的訊息**，這是 operator.add 做不到的（operator.add 只會單純接在後面）。官方的 quickstart 範例為了簡單用了 operator.add，但 graph API 頁介紹的是 add_messages；需要『修改既有訊息』（例如工具結果覆寫、人工修改）時要用 add_messages。MessagesState 是現成的、已經帶 add_messages 的狀態型別，可以繼承來加欄位。",
       C(String.raw`from typing import Annotated
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict  # TypedDict：用字典形式定義有固定欄位的型別
 from langchain.messages import AnyMessage          # 匯入路徑請以官方文件為準
 from langgraph.graph.message import add_messages   # 匯入路徑請以官方文件為準
-from langgraph.graph import MessagesState
+from langgraph.graph import MessagesState  # MessagesState：內建的狀態類型：以訊息列表當狀態
 
 # 寫法一：自己定義，messages 欄位掛上 add_messages
 class GraphState(TypedDict):
@@ -126,9 +126,11 @@ class State(MessagesState):
 class State(TypedDict):
     text: str
 
+# node_a：節點函式。輸入目前狀態；回傳要更新的欄位（在文字後面接上 -> a）
 def node_a(state: State):
     return {"text": state["text"] + " -> a"}    # 只回傳要更新的欄位
 
+# node_b：節點函式。輸入目前狀態；回傳要更新的欄位（在文字後面接上 -> b）
 def node_b(state: State):
     return {"text": state["text"] + " -> b"}
 
@@ -162,20 +164,23 @@ graph.invoke({"text": "start"})        # 結果 text 為 "start -> a -> b"`),
       "**真實的流程有分支與迴圈：分類後走不同路、檢查不合格就退回重做、工作量事先不知道。** LangGraph 用三個工具表達：條件邊、Command、Send。再加上節點層級的重試與全域的遞迴上限。",
       "**一、條件邊：用一個路由函式讀狀態，回傳『下一個節點的名稱』。** 路由函式可以回傳節點名稱、END，或 Send 物件。可以選擇性地給一個字典，把路由函式的輸出對應到節點名稱，讓路由函式回傳的字串可以和節點名稱不同。",
       C(String.raw`from typing import Literal
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START, END  # StateGraph：用節點與邊組成的狀態圖；START：LangGraph 圖的起點標記；END：LangGraph 圖的終點標記
 
 class State(TypedDict):
     question: str
     category: str
     answer: str
 
+# classify：分類節點。輸入狀態（含問題）；回傳分類結果欄位 category
 def classify(state: State):
     # 實際上這裡會呼叫模型做分類；回傳要更新的欄位
     return {"category": "billing" if "扣款" in state["question"] else "other"}
 
+# handle_billing：帳務分支的節點，寫入 answer 欄位
 def handle_billing(state: State):
     return {"answer": "已轉交帳務處理"}
 
+# handle_other：一般客服分支的節點，寫入 answer 欄位
 def handle_other(state: State):
     return {"answer": "已轉交一般客服"}
 
@@ -200,6 +205,7 @@ graph = builder.compile()`),
       "**二、Command：把『更新狀態』與『決定去哪』合在同一個回傳值。** 節點回傳 Command(update=..., goto=...)：update 設定狀態、goto 指定下一個節點。官方建議用 Literal 在回傳型別註明可能的目的地，這樣畫圖與檢查都更清楚。什麼時候用？當**『下一步是什麼』的判斷依賴這個節點剛算出來的結果**，不想另外寫路由函式時。官方的 email Agent 範例就是在節點裡分類、然後用 Command 同時寫入分類結果並跳到對應節點。",
       C(String.raw`from langgraph.types import Command    # 匯入路徑請以官方文件為準
 
+# classify_and_route：同時分類並決定下一步。輸入狀態；回傳 Command：更新 category，並用 goto 指定下一個節點
 def classify_and_route(state: State) -> Command[Literal["handle_billing", "handle_other"]]:
     category = "billing" if "扣款" in state["question"] else "other"
     goto = "handle_billing" if category == "billing" else "handle_other"
@@ -210,17 +216,19 @@ def classify_and_route(state: State) -> Command[Literal["handle_billing", "handl
 # Command(resume=...) 是用來回覆人工介入的（第 5 課）`),
       "**三、Send：動態扇出（map-reduce）。** 當要平行處理的項目數量**執行時才知道**（例如把文件切成 N 段、對每一段各做一次摘要），路由函式回傳一串 Send(節點名稱, 該項目的輸入)，每個項目各自跑一次同一個節點，輸出再靠 reducer 合併。這正是 orchestrator-worker 模式的實作方式。",
       C(String.raw`import operator
-from typing import Annotated
+from typing import Annotated  # Annotated：替型別附加額外資訊
 from langgraph.types import Send         # 匯入路徑請以官方文件為準
 
 class OverallState(TypedDict):
     subjects: list[str]
     summaries: Annotated[list[str], operator.add]   # reducer：每個工人的結果『附加』進來
 
+# continue_to_workers：條件邊函式。輸入整體狀態；為每個 subject 產生一個 Send，讓多個工人節點各自執行
 def continue_to_workers(state: OverallState):
     # 對每個 subject 各派一個工人；每個 Send 帶的是該工人自己的輸入（不是整個狀態）
     return [Send("summarize_one", {"subject": s}) for s in state["subjects"]]
 
+# summarize_one：工人節點。輸入單一 subject 的小狀態；回傳要寫入 summaries 的內容
 def summarize_one(state: dict):
     # 這個節點會被執行 N 次，每次只看到自己的那份輸入
     return {"summaries": [f"{state['subject']} 的摘要"]}
@@ -233,14 +241,17 @@ def summarize_one(state: dict):
     feedback: str
     attempts: int
 
+# generate：產生草稿的節點。輸入狀態；回傳草稿，並把嘗試次數加一
 def generate(state: DraftState):
     # 依 feedback 產生或修改草稿；用 attempts 計數，防止無限迴圈
     return {"draft": "（模型產生的草稿）", "attempts": state.get("attempts", 0) + 1}
 
+# evaluate：評估節點。輸入狀態；回傳回饋 feedback（示意：固定回 OK）
 def evaluate(state: DraftState):
     # 實際上由模型或規則評估品質，並給出回饋
     return {"feedback": "OK"}
 
+# should_retry：條件邊。輸入狀態；品質合格或已試滿 3 次就回傳結束，否則回傳 generate 重來
 def should_retry(state: DraftState) -> Literal["generate", "__end__"]:
     # 兩個離開迴圈的條件：品質合格，或已經試了夠多次
     if state["feedback"] == "OK" or state["attempts"] >= 3:
@@ -281,19 +292,21 @@ def should_retry(state: DraftState) -> Literal["generate", "__end__"]:
         "**條件邊（should_continue）：**如果最後一則訊息有 tool_calls，就走工具節點；沒有就走 END。工具節點之後固定回到模型節點。",
       ] },
       C(String.raw`import operator
-from typing import Annotated, Literal
-from typing_extensions import TypedDict
+from typing import Annotated, Literal  # Annotated：替型別附加額外資訊；Literal：限定只能是某幾個固定值
+from typing_extensions import TypedDict  # TypedDict：用字典形式定義有固定欄位的型別
 from langchain.messages import AnyMessage, SystemMessage, ToolMessage   # 匯入路徑請以官方文件為準
-from langchain.tools import tool
-from langchain.chat_models import init_chat_model
-from langgraph.graph import StateGraph, START, END
+from langchain.tools import tool  # tool：把函式標記成模型可呼叫的工具
+from langchain.chat_models import init_chat_model  # init_chat_model：依名稱建立聊天模型的統一入口
+from langgraph.graph import StateGraph, START, END  # StateGraph：用節點與邊組成的狀態圖；START：LangGraph 圖的起點標記；END：LangGraph 圖的終點標記
 
 # 兩個簡單工具（docstring 與型別提示是給模型看的說明，見 fw-lc-06）
+# add：工具函式。輸入兩個整數；回傳相加結果。docstring 會成為工具說明
 @tool
 def add(a: int, b: int) -> int:
     """把兩個整數相加。"""
     return a + b
 
+# multiply：工具函式。輸入兩個整數；回傳相乘結果。docstring 會成為工具說明
 @tool
 def multiply(a: int, b: int) -> int:
     """把兩個整數相乘。"""
@@ -380,7 +393,7 @@ agent.invoke({"messages": [{"role": "user", "content": "3 加 4 再乘以 5 是�
       "多數應用兩者並用：checkpointer 追蹤目前這段對話，store 放跨對話的長期資料。",
       "**Thread 與 thread_id：** 每次呼叫有檢查點的圖，都要在 config 的 configurable 裡給 thread_id；同一個 thread_id 就是同一段對話的狀態。",
       C(String.raw`from langgraph.checkpoint.memory import InMemorySaver     # 官方 quickstart 的匯入
-from langgraph.store.memory import InMemoryStore
+from langgraph.store.memory import InMemoryStore  # InMemoryStore：放在記憶體的長期記憶儲存
 
 checkpointer = InMemorySaver()    # 檢查點存在記憶體：程式重啟就全部消失，只適合開發與測試
 store = InMemoryStore()           # 長期記憶儲存庫（同樣只在記憶體）
@@ -425,6 +438,7 @@ graph.invoke({"messages": [{"role": "user", "content": "我剛剛說我叫什麼
       "**人工介入：interrupt()。** 在節點裡呼叫 interrupt(給人看的內容)，執行會在那裡**暫停、把狀態存進 checkpointer、把內容回傳給呼叫端**，直到有人恢復。恢復用 Command(resume=值)，這個值會成為 interrupt() 的回傳值。**必須有 checkpointer 與 thread_id。**",
       C(String.raw`from langgraph.types import interrupt, Command    # 匯入路徑請以官方文件為準
 
+# approval_node：需要人工核准的節點。輸入狀態；呼叫 interrupt 暫停等人回覆，再依回覆決定要不要執行動作
 def approval_node(state):
     # 到這裡就暫停：把問題交給人；人回覆的值會成為 interrupt() 的回傳值
     approved = interrupt("要執行這個動作嗎？（True 或 False）")

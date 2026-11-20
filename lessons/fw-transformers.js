@@ -47,7 +47,7 @@ python -c "from transformers import pipeline; print(pipeline('sentiment-analysis
       "**快取：** 用 from_pretrained 載入模型時，模型會從 Hub 下載並**快取在本機**。官方寫的預設位置是 ~/.cache/huggingface/hub，**Windows 上是 C:\\Users\\你的使用者名稱\\.cache\\huggingface\\hub**。要換位置，改環境變數，官方列出的優先順序是 HF_HUB_CACHE、HF_HOME、XDG_CACHE_HOME（後者要加 /huggingface，且只在沒設 HF_HOME 時有效）。大模型動輒數十 GB，C 槽空間不夠時，第一件事就是把快取搬到別的磁碟。",
       "**離線模式：** 在沒網路或被防火牆擋住的環境，要先把模型下載好。官方做法是用 huggingface_hub 的 snapshot_download 下載整個模型倉庫，之後設定環境變數 HF_HUB_OFFLINE=1 阻止所有對 Hub 的 HTTP 呼叫；或者在 from_pretrained 傳 local_files_only=True，只讀本地檔案。",
       C(String.raw`# 離線使用的兩個方法（未執行）
-from huggingface_hub import snapshot_download
+from huggingface_hub import snapshot_download  # snapshot_download：把整個模型倉庫下載到本機
 
 # 方法 A：先在有網路的環境，把整個模型倉庫下載到本機快取
 # repo_id 就是 Hub 上的「組織名/模型名」；官方範例用 meta-llama/Llama-2-7b-hf
@@ -58,7 +58,7 @@ snapshot_download(repo_id="meta-llama/Llama-2-7b-hf", repo_type="model")
 # 這樣 Transformers 就不會再嘗試連到 Hub
 
 # 方法 B：只載入本地檔案，不連網（路徑是官方範例的示意路徑）
-from transformers import LlamaForCausalLM
+from transformers import LlamaForCausalLM  # LlamaForCausalLM：Llama 架構的文字生成模型類別
 model = LlamaForCausalLM.from_pretrained("./path/to/local/directory", local_files_only=True)`),
       { note: "版本與修訂（revision）的行為，官方 Installation 頁有一段：如果你傳的是 commit hash，Transformers 會直接用該 commit 的本地快取，不會每個檔案都去 Hub 檢查；如果傳的是分支或標籤，載入開始時會連一次 Hub 去決定是哪個 commit，之後就用那個 commit 的快取。所以『想要可重現』就固定到 commit hash。" },
       { tip: "學這個框架的最短路徑：先記住 pipeline（第 2 課）能解決『我只想要結果』；第 3 到 5 課是『拆開 pipeline 看裡面三步』（分詞、模型、生成）；第 6 課是省記憶體與微調。看開源專案的程式碼時，90% 都是這幾個類別與參數的排列組合。" },
@@ -78,7 +78,7 @@ model = LlamaForCausalLM.from_pretrained("./path/to/local/directory", local_file
       "**pipeline 是什麼：** 官方說它是一個『簡單但強大的推論 API』，適用於許多任務，並支援 Hub 上任何模型。它把『前處理（分詞等）、模型推論、後處理』三步包成一個物件。Transformers 有一個通用的 Pipeline 類別，以及很多任務專用的 pipeline（例如 TextGenerationPipeline）；你用 task 參數指定任務識別字來載入對應的那一個。",
       "**每個任務都有預設的模型與前處理器，但可以用 model 參數覆蓋。** 官方的第一個例子：task 設成 text-generation、model 設成 google/gemma-2-2b。注意：沒指定模型時用的預設模型是什麼，會隨版本改變，正式使用時請明確指定 model，不要靠預設。",
       C(String.raw`# 最基本的 pipeline（改寫自官方 Pipeline 頁，未執行）
-from transformers import pipeline
+from transformers import pipeline  # pipeline：一行建立現成的推論流程
 
 # task 指定任務，model 指定 Hub 上的檢查點（官方範例用 gemma-2-2b；
 # 這個模型可能需要先在 Hub 同意條款，是否如此以模型頁為準）
@@ -103,7 +103,7 @@ outs = pipe(["the secret to baking a really good cake is ", "a baguette is "])`)
       ] } },
       "**任務專用參數：** pipeline 會把額外的關鍵字參數傳給對應的任務 pipeline。官方例子：語音辨識加 return_timestamps=\"word\" 可得到每個字的時間；文字生成加 return_full_text=False 只回傳新生成的部分（預設會連提示一起回傳）；文字生成還支援 generate() 的參數，例如 num_return_sequences=4 一次生成四個版本。",
       C(String.raw`# 常用參數示範（改寫自官方範例，未執行）
-from transformers import pipeline
+from transformers import pipeline  # pipeline：一行建立現成的推論流程
 
 # 1) 指定裝置：device=0 是第一張 GPU；沒設時 pipeline 會自動挑可用的加速器
 pipe = pipeline(task="text-generation", model="openai-community/gpt2", device=0)
@@ -118,7 +118,7 @@ res = pipe(
 
 # 3) 大模型：device_map="auto" 交給 Accelerate 分配（需要安裝 accelerate）
 #    dtype 指定半精度；官方範例用 torch.bfloat16
-import torch
+import torch  # torch：PyTorch：張量運算與神經網路
 pipe_big = pipeline(
     task="text-generation",
     model="google/gemma-2-2b",
@@ -137,8 +137,9 @@ pipe_big = pipeline(
       ] },
       "**大量資料不要自己一次讀進來：** 官方建議直接迭代資料集（或 generator），避免一次配置整份資料的記憶體，不用自己切批次，再搭配 batch_size 看有沒有幫助。官方範例用 Datasets 函式庫的資料集加上 KeyDataset 工具，一筆一筆餵給 pipeline。另外有些任務（零樣本分類、問答）一筆輸入會觸發多次模型前向傳遞，會干擾 batch_size，官方用 ChunkPipeline 處理這種情況，讓你能獨立調整批次大小。",
       C(String.raw`# 大量資料：用迭代的方式餵給 pipeline（改寫自官方範例，未執行）
-from transformers import pipeline
+from transformers import pipeline  # pipeline：一行建立現成的推論流程
 
+# data：產生器函式。用到才逐筆產生字串，不會一次把一千筆都放進記憶體
 def data():
     # generator：用到才產生，不會一次把一千筆全放進記憶體
     for i in range(1000):
@@ -170,7 +171,7 @@ for out in pipe(data()):
       "**分詞器做什麼：** 官方說，分詞器（tokenizer）把文字轉成張量，也就是模型的輸入。它負責正規化與切分文字、套用分詞演算法、加入特殊標記，並把輸出的 id 解碼回文字。概念上的背景（為什麼模型吃 token 不吃字）請回看 [[ai-02]]。這一課重點是：在 Transformers 裡你怎麼用它，以及哪些參數會讓結果悄悄出錯。",
       "**載入：** 用 AutoTokenizer.from_pretrained，官方稱這是『建議的做法』。它會讀取模型的設定，自動決定該用哪個分詞器類別，你不用事先知道類別名稱。**重點：分詞器和模型是一對的，必須用同一個檢查點的分詞器**，否則 id 對不上模型的詞表，輸出會是亂碼或無意義。",
       C(String.raw`# 載入並使用分詞器（改寫自官方 Tokenizers 頁，未執行）
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer  # AutoTokenizer：依模型名稱自動載入對應的 tokenizer
 
 # 檢查點名稱必須和你要用的模型一致
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b")
@@ -206,7 +207,7 @@ clean = tokenizer.decode(ids, skip_special_tokens=True)`),
         "**官方範例的觀察：** 三句話一起 padding 後，比較短的句子在『左邊』補了 id 0，遮罩對應位置為 0；這個範例檢查點補在左邊。",
       ] },
       C(String.raw`# 批次、padding、truncation（改寫自官方範例，未執行）
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer  # AutoTokenizer：依模型名稱自動載入對應的 tokenizer
 
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b")
 
@@ -234,7 +235,7 @@ short = tokenizer(
       "**你會在原始碼看到的幾個名詞**",
       "官方說每個模型的分詞器支援四種後端：TokenizersBackend（Rust 實作，大多數模型的預設，批次處理時能多執行緒並行，所以較快）、SentencePieceBackend、PythonBackend（需要特殊自訂分詞器的模型）、MistralCommonBackend（Mistral 與 Pixtral 模型）。AutoTokenizer 會依檢查點的 tokenizer_config.json 裡的 tokenizer_class 欄位去挑。當某個檢查點的設定檔標錯類別時，官方文件說它會優先採用序列化的 tokenizer.json，避免 id 出錯。你只要知道：這些差異被 AutoTokenizer 藏起來了，絕大多數情況你不用管。官方 v5 有分詞的大改動，舊教學的寫法可能和現在不同，有疑問時查官方的遷移指南。",
       C(String.raw`# 看分詞器用的後端（官方範例，未執行）
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer  # AutoTokenizer：依模型名稱自動載入對應的 tokenizer
 
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b")
 print(tokenizer.backend)
@@ -265,7 +266,7 @@ print(tokenizer.backend)
       ] } },
       "**logits 不是機率**，回憶 [[fw-05]] 第 3 課：要轉成機率才用 softmax。這幾個類別就是你在 [[fw-05]] 學過的『骨架 加 輸出頭』的現成版本。",
       C(String.raw`# 載入模型的基本寫法（改寫自官方 Loading models 頁，未執行）
-from transformers import AutoModelForCausalLM, AutoModelForSequenceClassification
+from transformers import AutoModelForCausalLM, AutoModelForSequenceClassification  # AutoModelForCausalLM：依名稱自動載入文字生成模型；AutoModelForSequenceClassification：依名稱自動載入序列分類模型
 
 # 因果語言模型：用來生成文字
 # device_map="auto" 讓 Accelerate 幫你決定放在哪些裝置（見下面）
@@ -289,8 +290,8 @@ clf = AutoModelForSequenceClassification.from_pretrained("meta-llama/Llama-2-7b-
         ["4 位元整數", "0.5 位元組", "約 3.5 GB"],
       ] } },
       C(String.raw`# 指定 dtype（改寫自官方範例，未執行）
-import torch
-from transformers import AutoModelForCausalLM, AutoConfig, AutoModel
+import torch  # torch：PyTorch：張量運算與神經網路
+from transformers import AutoModelForCausalLM, AutoConfig, AutoModel  # AutoModelForCausalLM：依名稱自動載入文字生成模型；AutoConfig：依名稱自動載入模型設定；AutoModel：依名稱自動載入基礎模型（輸出隱藏狀態）
 
 # 明確指定半精度；官方範例用 gemma-3-1b-it
 model = AutoModelForCausalLM.from_pretrained(
@@ -315,7 +316,7 @@ model3 = AutoModel.from_config(my_config)   # 只有骨架，權重是隨機的�
         "**分片：** save_pretrained 會把超過 50GB 的檢查點自動分片，並產生索引檔 model.safetensors.index.json，內含 metadata（總大小）與 weight_map（參數名稱對應到哪個分片檔）。",
       ] },
       C(String.raw`# 大模型載入選項（改寫自官方範例，未執行）
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM  # AutoModelForCausalLM：依名稱自動載入文字生成模型
 
 # 1) 自動分配到所有可用裝置，GPU 優先，放不下的到 CPU，再到硬碟
 model = AutoModelForCausalLM.from_pretrained("google/gemma-7b", device_map="auto")
@@ -334,7 +335,7 @@ model = AutoModelForCausalLM.from_pretrained(
       "**自訂模型與 trust_remote_code**",
       "有些 Hub 上的模型，建模程式碼**不在 Transformers 內**，而是放在模型倉庫裡。要載入它們必須傳 trust_remote_code=True，意思是『我允許執行倉庫裡的 Python 程式碼』。官方提醒：Hub 對每個倉庫做惡意軟體掃描，但仍然要小心無意間執行惡意程式。**更安全的做法是鎖定 revision（commit hash）**，避免模型作者之後改了程式碼你卻照單全收。這和 [[net-sec]] 講的供應鏈風險是同一個問題。",
       C(String.raw`# 載入自訂程式碼的模型（官方範例，未執行）
-from transformers import AutoModelForImageClassification
+from transformers import AutoModelForImageClassification  # AutoModelForImageClassification：依名稱自動載入圖片分類模型
 
 # trust_remote_code=True：允許執行模型倉庫內的 Python 程式碼。
 # 這等於在你的機器上執行別人寫的程式，務必先審閱，並鎖定版本
@@ -363,7 +364,7 @@ model = AutoModelForImageClassification.from_pretrained(
       "**生成的本質：** 官方說，LLM 被訓練成：給定一段初始文字（提示），加上自己已生成的輸出，預測下一個 token，直到長度上限或遇到結尾標記（EOS）。Transformers 的 generate() 就是做這件事，所有具生成能力的模型都有。這一課把前三課串起來：分詞器、模型、generate，並處理對話格式。",
       "**最小的完整流程**",
       C(String.raw`# 手動走完「分詞、生成、解碼」（改寫自官方 Text generation 頁，未執行）
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM  # AutoTokenizer：依模型名稱自動載入對應的 tokenizer；AutoModelForCausalLM：依名稱自動載入文字生成模型
 
 # 分詞器：padding_side="left"，因為 LLM 不是被訓練成從 padding 後面接著生成
 tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1", padding_side="left")
@@ -391,7 +392,7 @@ text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
       ] } },
       "**抽樣參數的語意**（temperature、top_k、top_p 的概念）回看 [[ai-02]]。要提醒的是：本站 [[ai-03]] 講過 Claude 新模型的取樣參數有限制，但那是 Claude API 的規則；**Transformers 跑本地模型，這些參數完全由你控制**，兩邊不要混用經驗。",
       C(String.raw`# 設定與儲存生成參數（改寫自官方範例，未執行）
-from transformers import AutoModelForCausalLM, GenerationConfig
+from transformers import AutoModelForCausalLM, GenerationConfig  # AutoModelForCausalLM：依名稱自動載入文字生成模型；GenerationConfig：設定文字生成參數（例如最大長度）
 
 model = AutoModelForCausalLM.from_pretrained("my_account/my_model")   # 官方範例的示意名稱
 
@@ -412,8 +413,8 @@ generation_config = GenerationConfig(
       "官方在 Chat templates 頁講了一個核心觀念：**所有因果語言模型，不管有沒有針對聊天微調過，都只是在『續寫一串 token』。** 聊天模型是用被格式化成訊息序列的資料微調的。你傳的 role 與 content 字典清單，會被轉成一串 token，通常帶有像 <|user|>、<|assistant|> 這樣的控制標記，讓模型看見對話結構。**不同模型的格式不一樣，即使它們微調自同一個基礎模型。** 官方用 Mistral-7B-Instruct（用 [INST] 與 [/INST]）和 Zephyr-7B（用 <|user|> 與 <|assistant|>）對比，並說：控制標記錯了，模型表現會大幅變差。",
       "解法：每個聊天模型都附有 **chat template**，用 tokenizer.apply_chat_template 套用。輸入是 role 和 content 的字典清單，常見 role 有三個：user（使用者）、assistant（模型）、system（行為指示，通常放最前面）。這和 [[ai-03]] 的 messages 概念同源，差別是這裡是你自己負責把它轉成 token。",
       C(String.raw`# 用 chat template 做對話生成（改寫自官方 Chat templates 頁，未執行）
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch  # torch：PyTorch：張量運算與神經網路
+from transformers import AutoModelForCausalLM, AutoTokenizer  # AutoModelForCausalLM：依名稱自動載入文字生成模型；AutoTokenizer：依模型名稱自動載入對應的 tokenizer
 
 tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
 model = AutoModelForCausalLM.from_pretrained(
@@ -450,7 +451,7 @@ print(tokenizer.decode(outputs[0]))
         "**padding 的位置：** 批次生成時各句長度不同需要補齊，但 LLM 不是被訓練成從 padding 繼續生成，所以要補在『左邊』。官方範例對照：預設（右邊補）時，短的那句生成出 '1, 2, 33333333333' 這種壞結果；改左邊並把 pad_token 設成 eos_token 後，結果正常。",
       ] },
       C(String.raw`# 批次生成的正確設定（改寫自官方範例，未執行）
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM  # AutoTokenizer：依模型名稱自動載入對應的 tokenizer；AutoModelForCausalLM：依名稱自動載入文字生成模型
 
 # padding_side="left"：補齊放在左邊，生成時右邊才是真實內容
 tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1", padding_side="left")
@@ -504,7 +505,7 @@ only_new = tokenizer.batch_decode(generated_ids[:, input_length:], skip_special_
       C(String.raw`# 用 bitsandbytes 載入 4 位元模型（改寫自官方 Text generation 頁，未執行）
 # 需要先安裝 bitsandbytes；官方註明它也支援 CUDA 以外的多種後端，
 # 支援的平台請看官方 bitsandbytes 安裝文件（Windows 是否可用以該文件為準）
-from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, BitsAndBytesConfig  # AutoModelForCausalLM：依名稱自動載入文字生成模型；BitsAndBytesConfig：設定量化（用更少位元存模型）
 
 # 量化設定：載入成 4 位元
 quantization_config = BitsAndBytesConfig(load_in_4bit=True)
@@ -526,7 +527,7 @@ model = AutoModelForCausalLM.from_pretrained(
         "**建立 Trainer 並 train()：** 傳入模型、設定、資料集、processing_class（分詞器）與 data_collator。",
       ] },
       C(String.raw`# Trainer 微調的完整骨架（改寫自官方 Fine-tuning 頁，未執行）
-from datasets import load_dataset
+from datasets import load_dataset  # load_dataset：載入 Hugging Face 資料集
 from transformers import (
     AutoTokenizer, AutoModelForCausalLM,
     DataCollatorForLanguageModeling, TrainingArguments, Trainer,
@@ -537,6 +538,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 dataset = load_dataset("karthiksagarn/astro_horoscope", split="train")   # 官方範例資料集
 
 # --- 1. 分詞 ---
+# tokenize：輸入一批資料；把 horoscope 欄位切成 token（超過 512 就截斷），回傳 input_ids 等欄位
 def tokenize(batch):
     return tokenizer(batch["horoscope"], truncation=True, max_length=512)
 
@@ -582,8 +584,8 @@ trainer.train()
       "完整微調要更新全部權重，連同優化器狀態的記憶體很大。官方的 PEFT 頁說明：參數高效微調（PEFT）**只微調少量額外參數（稱為 adapter，轉接器）**，疊在預訓練模型上；因為只更新 adapter，優化器要追蹤的梯度與狀態少很多，記憶體使用顯著降低；adapter 很輕量，方便分享、儲存與載入。Transformers 直接整合 PEFT 函式庫，所有 PreTrainedModel 都支援，可載入、新增、訓練、切換、刪除 adapter。官方寫整合需要 peft 0.20.0 以上；LoRA、IA3、AdaLoRA 這類非提示式的 PEFT 方法都支援，提示調整與前綴調整則要直接用 PEFT 函式庫。",
       C(String.raw`# 用 LoRA 微調（改寫自官方 PEFT 頁，未執行）
 # 需要：pip install -U peft（官方註明整合需要 peft 0.20.0 以上）
-from peft import LoraConfig, TaskType
-from transformers import AutoModelForCausalLM, Trainer, TrainingArguments
+from peft import LoraConfig, TaskType  # LoraConfig：設定 LoRA 微調的參數；TaskType：指定微調的任務種類
+from transformers import AutoModelForCausalLM, Trainer, TrainingArguments  # AutoModelForCausalLM：依名稱自動載入文字生成模型；Trainer：封裝訓練迴圈的高階類別；TrainingArguments：訓練參數設定（批次大小、學習率等）
 
 model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b")
 

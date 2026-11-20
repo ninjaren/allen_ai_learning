@@ -26,7 +26,7 @@ window.LESSON = window.LESSON || {};
       ] } },
       "**安裝（Windows）：** 到官方的 Get Started 頁（pytorch.org/get-started/locally），用頁面上的選擇器選作業系統、套件管理器（pip）、運算平台（CPU 或某個 CUDA 版本），它會產生**當下正確的**安裝指令，照著貼上執行。我讀到的舊版官方文件頁寫 Windows 支援 Python 3.9 到 3.12；**你本機是較新的 Python，要用選擇器確認你的 Python 版本被支援**，不要憑這個數字下結論。沒有 NVIDIA 顯卡就選 CPU；有顯卡就選與你驅動相容的 CUDA 版本。裝完驗證：",
       C(String.raw`# 前置：照官方頁面產生的指令安裝（這裡不寫指令，因為指令依版本與平台而變）
-import torch
+import torch  # torch：PyTorch：張量運算與神經網路
 
 x = torch.rand(5, 3)             # 官方驗證步驟：建立一個 5x3 的隨機張量
 print(x)
@@ -35,7 +35,7 @@ print(x)
 print(torch.cuda.is_available())`),
       "**張量（官方 Tensors 教學）：** 建立方式：",
       C(String.raw`import torch
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 # 1. 從資料建立：dtype 會自動推斷（整數得 int64，小數得 float32）
 data = [[1, 2], [3, 4]]
@@ -160,9 +160,10 @@ frozen = w.detach()           # frozen 與 w 共用資料，但 frozen 不會參
       "**PyTorch 裡幾乎所有東西都是 nn.Module：一層、一個區塊、整個模型，全都是。** 一個 Module 可以包含其他 Module，所以模型是一棵由模組組成的樹。這個遞迴的結構，就是讀開源模型程式碼時你面對的東西。",
       "**寫法（官方 Build the Neural Network 教學）：** 繼承 nn.Module，在 __init__ 定義有哪些層，在 forward 定義資料怎麼流過它們。",
       C(String.raw`import torch
-from torch import nn
+from torch import nn  # nn：PyTorch 的神經網路層與模組
 
 class NeuralNetwork(nn.Module):
+    # __init__：建構函式。建立這個網路用到的各層（攤平層與一疊全連接層），讓 PyTorch 登記它們的參數
     def __init__(self):
         super().__init__()            # 一定要先呼叫父類別的 __init__，否則子模組不會被登記
         self.flatten = nn.Flatten()   # 把每張 28x28 的圖攤平成 784 個數字（保留批次維度）
@@ -174,6 +175,7 @@ class NeuralNetwork(nn.Module):
             nn.Linear(512, 10),       # 最後輸出 10 個數字（例如 10 個類別的分數）
         )
 
+    # forward：前向傳播。輸入一批圖片 x；依序通過各層，輸出每個類別的原始分數 logits
     def forward(self, x):             # 前向傳播：定義資料怎麼流動
         x = self.flatten(x)           # (B, 1, 28, 28) -> (B, 784)
         logits = self.linear_relu_stack(x)   # (B, 784) -> (B, 10)
@@ -240,7 +242,7 @@ print("總參數量：", total)
       "**損失函式：** 把『預測與答案差多少』變成一個數字。官方教學用 nn.CrossEntropyLoss（分類），並提到 nn.MSELoss 是迴歸（預測連續數值）的常見選擇。**關鍵：CrossEntropyLoss 要的是原始 logits，它內部會自己做正規化。所以模型最後不要先接 Softmax 再丟進去**（官方範例也是模型輸出 logits 直接給它）。",
       "**最佳化器：** 負責『依梯度更新參數』。官方教學用 SGD（隨機梯度下降），並提到還有 Adam、RMSProp 等。官方 torch.optim 文件列出的演算法包括 SGD（可帶 momentum）、Adam 與 AdamW（AdamW 把權重衰減（weight decay）解耦）、Adagrad、RMSprop、NAdam、RAdam、LBFGS 等。建構時把 model.parameters() 與選項（學習率等）交給它。",
       C(String.raw`import torch
-from torch import nn
+from torch import nn  # nn：PyTorch 的神經網路層與模組
 
 learning_rate = 1e-3
 batch_size = 64
@@ -264,6 +266,7 @@ optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
         if batch % 100 == 0:
             print(f"loss: {loss.item():.4f}")   # item()：把單一元素的張量轉成 Python 數字
 
+# test_loop：在測試資料上評估模型。輸入 dataloader、模型與損失函式；不更新參數，只印出平均損失
 def test_loop(dataloader, model, loss_fn):
     model.eval()                        # 切到評估模式：Dropout 關閉、BatchNorm 用累積的統計
     total_loss = 0.0
@@ -308,19 +311,22 @@ for epoch in range(epochs):             # 每個 epoch 完整看過一遍訓練�
         "**__getitem__：**依索引取出『一筆』樣本：讀檔、套用轉換、回傳（輸入, 標籤）。",
       ] },
       C(String.raw`import os
-import pandas as pd
-from torch.utils.data import Dataset, DataLoader
+import pandas as pd  # pandas：表格資料處理
+from torch.utils.data import Dataset, DataLoader  # Dataset：自訂資料集的基底類別；DataLoader：把資料集分批、洗牌後送進模型
 
 class ImageDataset(Dataset):
+    # __init__：建立資料集時只執行一次，讀入標註檔並記下圖片資料夾與轉換方式
     def __init__(self, annotations_file, img_dir, transform=None):
         # 只在建立時執行一次：讀標註檔（圖片檔名與標籤的對照）、記下圖片資料夾
         self.img_labels = pd.read_csv(annotations_file)
         self.img_dir = img_dir
         self.transform = transform
 
+    # __len__：回傳資料集的樣本總數，DataLoader 靠它知道要抽幾筆
     def __len__(self):
         return len(self.img_labels)                # 樣本總數
 
+    # __getitem__：輸入索引 idx；讀出第 idx 張圖與它的標籤並回傳，DataLoader 會反覆呼叫它
     def __getitem__(self, idx):
         # DataLoader 會用索引呼叫這個方法來取得第 idx 筆
         img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
@@ -466,10 +472,11 @@ loss.backward()                          # backward 在 autocast 區塊外面
       ] },
       "**典型語言模型的骨架（形狀為推導，非執行結果）：**",
       C(String.raw`import torch
-from torch import nn
+from torch import nn  # nn：PyTorch 的神經網路層與模組
 
 class TinyLM(nn.Module):
     """一個極簡的語言模型骨架，只為了示範『讀開源程式碼時該認出的結構』。"""
+    # __init__：建構函式。建立詞嵌入層與多層重複的區塊，讓 PyTorch 登記它們的參數
     def __init__(self, vocab_size=1000, dim=64, n_layers=2):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, dim)       # token 編號 -> 向量；權重形狀 (vocab_size, dim)
@@ -479,6 +486,7 @@ class TinyLM(nn.Module):
         self.norm = nn.LayerNorm(dim)                    # 最後的正規化
         self.head = nn.Linear(dim, vocab_size)           # 輸出頭：隱藏向量 -> 每個詞的分數（logits）
 
+    # forward：輸入 token 編號 (B, L)；先轉成向量，再依序通過每一層區塊，輸出同形狀的向量
     def forward(self, token_ids):                        # token_ids: (B, L)  每個元素是整數編號
         x = self.embed(token_ids)                        # (B, L)    -> (B, L, D)
         for block in self.blocks:                        # 依序穿過每一層
@@ -502,9 +510,10 @@ class TinyLM(nn.Module):
 #     is_causal=False, scale=None, enable_gqa=False)
 
 # 官方文件的等價數學流程，用白話與註解寫成（讀它就懂注意力在做什麼）：
-import math
-import torch
+import math  # math：數學函式
+import torch  # torch：PyTorch：張量運算與神經網路
 
+# attention_math：注意力計算。輸入 query、key、value 與可選遮罩；算出每個位置該看誰多少，回傳依比重加總後的 value
 def attention_math(query, key, value, attn_mask=None, is_causal=False):
     # query: (B, H, L, E)   key: (B, H, S, E)   value: (B, H, S, Ev)
     # B 批次、H 注意力頭數、L 查詢長度、S 來源長度、E 與 Ev 是每個頭的維度

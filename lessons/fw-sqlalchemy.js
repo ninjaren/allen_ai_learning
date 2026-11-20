@@ -25,7 +25,7 @@ window.LESSON = window.LESSON || {};
       "**版本的重要提醒：** 我讀到的官方頁面寫著『Release: 2.0.57，legacy version』，側邊欄把 2.1 列為目前版本。也就是說：這組課文依 2.0 寫，**2.1 可能有差異，我沒有讀 2.1 的升級說明**。你安裝的版本若是 2.1，遇到對不上的地方請以官方文件為準。另外，網路上許多舊教學（1.x 的 `Query` 風格、`declarative_base()`）和 2.0 的寫法不同，官方 2.0 教學用的是 `select()` 加 `Session.execute()` 或 `Session.scalars()`。",
       "**Engine：整個程式的連線入口。** 官方說 Engine 是『特定資料庫的連線來源』，內含連線池，通常**一個資料庫一個全域物件**，用一個網址字串設定。",
       C(String.raw`# 未執行。pip install sqlalchemy（官方教學用的就是這個套件）
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine  # create_engine：建立資料庫連線引擎
 
 # 網址的三個部分（官方）：資料庫種類 + 驅動程式 + 位置
 #   sqlite   = 資料庫種類（dialect）
@@ -41,7 +41,7 @@ engine = create_engine("sqlite+pysqlite:///:memory:", echo=True)
       "**換成別的資料庫：** 主要是換網址，並另外安裝對應的驅動。本站全端課提到 PostgreSQL 的網址形如 `postgresql+psycopg://使用者:密碼@主機:5432/資料庫名`（驅動是 psycopg）。官方 Engine 那一頁只示範了 SQLite 一個網址，沒有列出各資料庫的完整網址規則，所以其他資料庫的網址寫法與驅動安裝，請查官方的 Engine 設定與各 Dialect 文件，我這次沒有讀。",
       "**Connection 與 text()：直接寫 SQL 的最低層用法。** 平常用 ORM 時很少需要，但值得知道，因為它揭露了交易怎麼運作：",
       C(String.raw`# 未執行
-from sqlalchemy import text
+from sqlalchemy import text  # text：直接寫原始 SQL 字串
 
 # 「commit as you go」：自己呼叫 commit（官方教學用來示範）
 with engine.connect() as conn:
@@ -86,7 +86,7 @@ with engine.connect() as conn:
       { note: "**白話版：** Session 是你跟資料庫之間的『一次談話』。談話中你可以新增、修改、刪除一堆東西，但都只是『記在 Session 的小本本上』；等你說『確定（commit）』，才一次寫進資料庫；說『算了（rollback）』，就全部作廢。Web 後端的做法是：每來一個請求就開一次談話，結束就關掉。" },
       "**Session 是什麼：** 官方定義：Session 管理和資料庫的『對話』，並用一個**identity map（身分對照表）**保存 ORM 物件。它向 Engine 取得連線，在你 commit、rollback 或 close 之前，都在同一筆交易裡。",
       C(String.raw`# 未執行
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # Session：資料庫工作階段（一次對話單位）
 
 # 官方基本寫法：用 with 區塊，離開時自動 close
 with Session(engine) as session:
@@ -104,7 +104,7 @@ with Session(engine) as session, session.begin():
     session.add(some_object)`),
       "**sessionmaker：固定設定的工廠。** 官方建議在模組層級（和 engine 放一起）建一次、重複使用：",
       C(String.raw`# 未執行
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker  # sessionmaker：產生 Session 的工廠
 
 SessionLocal = sessionmaker(engine)        # 名稱 SessionLocal 是慣例，不是官方規定
 
@@ -141,9 +141,10 @@ SessionLocal = sessionmaker(engine, expire_on_commit=False)
 # 物件上不一定是最新的。需要最新值時，自己呼叫 session.refresh(obj)`),
       "**搭配 FastAPI（接上 [[fw-01]]）：** 一個請求一個 Session，用 `yield` 的依賴最自然。官方 FastAPI 教學與本站全端課的寫法相同，這裡用 SQLAlchemy 的 `sessionmaker` 寫一次（未執行）：",
       C(String.raw`# 未執行。FastAPI 依賴寫法見 fw-01 的依賴注入那課
-from typing import Annotated
-from fastapi import Depends
+from typing import Annotated  # Annotated：替型別附加額外資訊
+from fastapi import Depends  # Depends：宣告依賴，由框架幫你準備
 
+# get_session：FastAPI 依賴。每個請求建立一個 Session 交給路徑函式使用，請求結束自動關閉
 def get_session():
     with SessionLocal() as session:     # 請求開始：建立 Session
         yield session                    # 交給路徑函式使用
@@ -172,9 +173,9 @@ SessionDep = Annotated[Session, Depends(get_session)]
       { note: "**白話版：** 『宣告模型』就是用 Python 類別描述資料表長什麼樣子：類別是資料表、屬性是欄位、物件是一列資料。你寫的這份描述，同時也是 SQLAlchemy 理解資料庫的依據，之後的查詢、寫入、遷移都以它為準。" },
       "**第一步：建立 Base。** 官方寫法是繼承 `DeclarativeBase`。這個基底類別會自動提供兩樣東西：`Base.metadata`（資料表的集合）與 `Base.registry`（協調對應關係）。官方也註明舊的 `declarative_base()` 函式仍然支援，新程式用 `DeclarativeBase`。",
       C(String.raw`# 未執行
-from typing import List, Optional
-from sqlalchemy import ForeignKey, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from typing import List, Optional  # List：標註『元素型別固定的串列』；Optional：標註『可以是某型別或 None』
+from sqlalchemy import ForeignKey, String  # ForeignKey：宣告外鍵（連到別張表）；String：SQL 的字串欄位型別
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship  # DeclarativeBase：資料表模型的基底類別；Mapped：標註資料表欄位的 Python 型別；mapped_column：宣告資料表欄位；relationship：宣告資料表之間的關聯
 
 class Base(DeclarativeBase):          # 官方：所有模型都繼承它
     pass
@@ -233,7 +234,7 @@ Base.metadata.create_all(engine)
       { note: "**白話版：** 這一課學『怎麼從資料庫取東西、怎麼存東西』。取東西：寫一句 `select(...)`，描述你要什麼；存東西：把物件 `add` 進 Session，最後 `commit`。修改就是直接改物件的屬性，Session 會自己發現你改了什麼。" },
       "**查詢：`select()` 加上 Session。** 官方 2.0 的風格：用 `select()` 建立一個查詢語句，再交給 `Session.execute()` 或 `Session.scalars()` 執行。",
       C(String.raw`# 未執行。承接上一課的 User、Address 模型
-from sqlalchemy import select, func
+from sqlalchemy import select, func  # select：組出 SELECT 查詢；func：呼叫 SQL 函式（例如 count、sum）
 
 stmt = select(User).where(User.name == "spongebob")     # 建立查詢，這時還沒送出
 
@@ -292,7 +293,7 @@ with SessionLocal() as session:
       "**惰性載入（lazy loading）是預設（官方）：** 存取一個還沒載入的關聯屬性（例如 `user.addresses`），SQLAlchemy 才送出 SELECT；載入之後，那個集合會留在記憶體，直到過期為止，再存取就不會送 SQL。而 `commit()` 預設會讓物件過期，所以 commit 之後再存取，又會重新載入一次。",
       "**N+1 問題（官方）：** 官方說明惰性載入在許多物件各自有未載入的集合時，會造成大量隱含的查詢，而且這些查詢可能不被注意到、可能在交易結束後才失敗、在 asyncio 下甚至根本不能用。官方給的建議流程：打開 SQL 的日誌（echo），觀察有沒有多餘的 SELECT，再選擇載入策略。",
       C(String.raw`# 未執行
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload  # selectinload：預先批次載入關聯資料，避免重複查詢；joinedload：用 JOIN 一次載入關聯資料
 
 # 偷懶寫法：1 次查使用者 + 每個使用者各 1 次查地址（N+1）
 users = session.scalars(select(User)).all()
@@ -331,13 +332,14 @@ class User(Base):
       C(String.raw`# 未執行。pip install sqlalchemy[asyncio]（官方：包含 greenlet 相依）
 # 官方：PostgreSQL 用 asyncpg 驅動：postgresql+asyncpg://user:pass@host/dbname
 #       SQLite 用 aiosqlite：sqlite+aiosqlite://
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker  # create_async_engine：建立非同步資料庫連線引擎；async_sessionmaker：產生非同步 Session 的工廠
 
 engine = create_async_engine("sqlite+aiosqlite://", echo=True)
 
 # 官方：asyncio 下建議 expire_on_commit=False（因為存取過期屬性要做 IO，而 async 不允許隱含 IO）
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
+# demo：非同步示範。開啟非同步 Session、新增一筆資料、預先載入關聯後查詢，最後釋放引擎
 async def demo():
     async with async_session() as session:
         async with session.begin():
@@ -409,9 +411,11 @@ alembic history --verbose   # 官方：列出所有版本（--verbose 多顯示�
 # 官方：Alembic 會在資料庫建一張 alembic_version 表，記錄目前版本`),
       "**遷移檔長什麼樣子（官方範例）：** 一個 `upgrade()` 與一個 `downgrade()`，互為相反：",
       C(String.raw`# alembic/versions/xxxx_add_column.py 的內容，未執行（官方範例）
+# upgrade：往前升級資料庫結構。這裡是在 account 表新增一個欄位
 def upgrade():
     op.add_column("account", sa.Column("last_transaction_date", sa.DateTime))
 
+# downgrade：退回上一版資料庫結構。這裡是把 upgrade 新增的欄位刪掉
 def downgrade():
     op.drop_column("account", "last_transaction_date")`),
       "**自動產生不是萬能（官方，最重要的一段）：**",

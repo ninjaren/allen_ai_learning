@@ -66,8 +66,8 @@ window.LESSON = window.LESSON || {};
       "**LangChain 的模型叫 Chat Model：輸入是『訊息列表』，輸出是一則 AIMessage。** 這是它統一介面的核心。你寫的程式不管底層是 Claude 還是別家模型，都用同一套訊息與方法。",
       "**建立模型有兩種寫法（官方 models 頁）：**",
       C(String.raw`# 前置：pip install -U langchain langchain-anthropic，並設定環境變數 ANTHROPIC_API_KEY
-from langchain.chat_models import init_chat_model
-from langchain_anthropic import ChatAnthropic
+from langchain.chat_models import init_chat_model  # init_chat_model：依名稱建立聊天模型的統一入口
+from langchain_anthropic import ChatAnthropic  # ChatAnthropic：LangChain 的 Claude 聊天模型包裝
 
 # 寫法一：init_chat_model，用字串指定『供應商:模型』，換供應商只改字串
 model = init_chat_model("anthropic:claude-sonnet-5-5", max_tokens=1024)
@@ -167,7 +167,7 @@ sequence.batch([1, 2, 3])    # 一次處理多個輸入，得 [4, 6, 8]
 # （官方參考文件的 docstring 範例就是這個）`),
       "**經典的 LLM 管線：提示詞 | 模型 | 輸出解析器。** 每一段的輸入輸出型別剛好接得起來：字典 -> 填好的訊息 -> AIMessage -> 字串。",
       C(String.raw`from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser  # StrOutputParser：把模型輸出轉成純字串
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "把使用者給的文字翻成英文，只輸出譯文"),
@@ -292,9 +292,9 @@ agent2 = create_agent(
       ] } },
       "**Document 是整條管線的通用貨幣（官方 knowledge base 教學）：** 它有 page_content（文字字串）、metadata（字典，例如來源檔名、頁碼）、選填的 id。**每個 chunk 通常就是一個 Document**。metadata 非常重要：之後要顯示出處、依來源過濾、做權限控制，全靠它。",
       C(String.raw`# 前置：pip install langchain-text-splitters，另需某個嵌入模型與向量庫的整合套件
-from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_core.documents import Document  # Document：文件物件（內容加中繼資料）
+from langchain_text_splitters import RecursiveCharacterTextSplitter  # RecursiveCharacterTextSplitter：把長文字依長度遞迴切成小塊
+from langchain_core.vectorstores import InMemoryVectorStore  # InMemoryVectorStore：放在記憶體裡的向量資料庫（示範用）
 
 # 1. 載入：載入器的結果就是 Document 列表；這裡手動建兩個代表
 docs = [
@@ -328,9 +328,10 @@ retriever = vector_store.as_retriever(
 docs = retriever.invoke("買了東西可以退嗎")   # Runnable：用 invoke 呼叫，也支援 batch
 
 # 方法二：用 @chain 自己包（官方範例），可以在裡面加過濾、重排序等邏輯
-from typing import List
-from langchain_core.runnables import chain
+from typing import List  # List：標註『元素型別固定的串列』
+from langchain_core.runnables import chain  # chain：把函式包成可串接的 Runnable
 
+# my_retriever：自訂檢索函式。輸入問題字串；向量庫取最相近的 4 份文件，回傳 Document 列表
 @chain
 def my_retriever(query: str) -> List[Document]:
     return vector_store.similarity_search(query, k=4)`),
@@ -359,6 +360,7 @@ def my_retriever(query: str) -> List[Document]:
       "**工具：用 @tool 裝飾一個函式（官方 tools 頁）。** 規則很簡單但很重要：**docstring 就是工具的說明、型別提示就是輸入的 schema，所以兩者都是必要的**。模型看到的只有名稱、說明與參數結構，說明寫不清楚，模型就不知道何時該用。",
       C(String.raw`from langchain.tools import tool
 
+# search_orders：工具函式。輸入客戶編號與筆數上限；回傳訂單文字（示意，實際應查資料庫）。docstring 與型別提示會成為給模型看的工具說明
 @tool
 def search_orders(customer_id: str, limit: int = 10) -> str:
     """查詢指定客戶的最近訂單。customer_id 是客戶編號，limit 是最多回傳幾筆。"""
@@ -366,13 +368,14 @@ def search_orders(customer_id: str, limit: int = 10) -> str:
     return f"客戶 {customer_id} 的最近 {limit} 筆訂單：（這裡應該查資料庫）"
 
 # 想給模型更清楚的參數指引：用 Pydantic 的 args_schema
-from pydantic import BaseModel, Field
-from typing import Literal
+from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
+from typing import Literal  # Literal：限定只能是某幾個固定值
 
 class WeatherInput(BaseModel):
     city: str = Field(description="城市名稱")
     unit: Literal["celsius", "fahrenheit"] = Field(default="celsius", description="溫度單位")
 
+# get_weather：工具函式。輸入城市與溫度單位；回傳天氣描述文字（示意）
 @tool(args_schema=WeatherInput)      # 參數的描述、預設值、可選值都會成為 schema 的一部分
 def get_weather(city: str, unit: str = "celsius") -> str:
     """查詢城市天氣。"""

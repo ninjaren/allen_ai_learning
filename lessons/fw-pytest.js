@@ -55,17 +55,21 @@ window.LESSON = window.LESSON || {};
       "**import 模式（官方）：** 預設的 `prepend` 為了歷史原因保留，測試檔會被當成最上層模組匯入，所以**測試檔名必須唯一**；官方推薦新專案用 `importlib` 模式（pytest 不會修改 `sys.path`），在設定檔寫 `addopts = [\"--import-mode=importlib\"]`。",
       "**斷言（assert）：用普通的 Python assert 就好（官方）。** 失敗時 pytest 會『看穿』表達式，顯示各個子運算的值（函式呼叫的結果、屬性、比較、運算子）。它還對長字串、長序列、字典、集合提供詳細的差異顯示。可以在逗號後面加自訂訊息。",
       C(String.raw`# 未執行。承 py-14 的例子，補幾個官方列出的斷言工具
-import pytest
+import pytest  # pytest：Python 的測試框架
 
+# myfunc：示範用函式，呼叫就丟出 ValueError
 def myfunc():
     raise ValueError("Exception 123 raised")
 
+# test_match：測試丟出的例外，其訊息符合正規表達式
 def test_match():
     # match：用 re.search() 對例外訊息做正規表達式檢查（官方）
     with pytest.raises(ValueError, match=r".* 123 .*"):
         myfunc()
 
+# test_exact_type：示範只接受確切例外型別的寫法
 def test_exact_type():
+    # foo：示範用函式，丟出 NotImplementedError（它是 RuntimeError 的子類別）
     def foo():
         raise NotImplementedError
     # 官方提醒：pytest.raises(RuntimeError) 連子類別也算符合，
@@ -75,9 +79,11 @@ def test_exact_type():
         foo()
     assert excinfo.type is NotImplementedError     # 精確型別（excinfo.type、.value、.traceback）
 
+# test_floats：用 approx 比較浮點數，避免 0.1 加 0.2 的誤差造成失敗
 def test_floats():
     assert (0.1 + 0.2) == pytest.approx(0.3)        # 浮點數比較（官方：也支援 list、dict、NumPy 陣列）
 
+# test_with_message：assert 後面可以附自訂的失敗訊息
 def test_with_message():
     a = 3
     assert a % 2 == 0, "value was odd, should be even"   # 逗號後面是自訂訊息`),
@@ -98,19 +104,22 @@ def test_with_message():
       "**請求 fixture（官方）：** 測試與 fixture 都用『函式參數名稱』請求 fixture；pytest 依名稱找到對應的 fixture、執行它、把回傳值傳進來。fixture 還可以請求別的 fixture。**同一個測試中，同一個 fixture 的回傳值會被快取**，重複請求拿到的是同一個物件。",
       "**範圍（scope，官方）：** 預設是 `function`（每個測試函式一次）。其他是 `class`、`module`、`package`、`session`；範圍決定這個 fixture 什麼時候被銷毀。官方補充：pytest 同一時間只快取一個 fixture 實例。",
       C(String.raw`# 未執行
-import pytest
+import pytest  # pytest：Python 的測試框架
 
+# smtp_connection：fixture。建立並回傳 SMTP 連線，供多個測試共用
 @pytest.fixture(scope="module")       # 整個測試檔共用一個，檔案測完才銷毀
 def smtp_connection():
     return smtplib.SMTP("smtp.gmail.com", 587, timeout=5)   # 官方範例
 
 # 動態範圍（官方，pytest 5.2 加入）：scope 可以是一個函式，
 # 在 fixture 定義時呼叫一次，回傳要用的範圍名稱
+# determine_scope：動態決定 fixture 的範圍。輸入 fixture 名稱與設定；有指定選項就用 session，否則用 function
 def determine_scope(fixture_name, config):
     if config.getoption("--keep-containers", None):
         return "session"
     return "function"
 
+# docker_container：yield fixture。yield 之前啟動容器，yield 出去的值給測試用，之後負責清理
 @pytest.fixture(scope=determine_scope)
 def docker_container():
     yield spawn_container()`),
@@ -120,6 +129,7 @@ def docker_container():
         "『安全的清理順序』：官方建議**一個 fixture 只做一件改變狀態的事，並配上它自己的清理**。這樣後面的步驟失敗時，前面的 fixture 仍然會各自清理乾淨。",
       ] },
       C(String.raw`# 未執行。官方風格的 yield fixture
+# sending_user：yield fixture。準備一位使用者交給測試，測試結束後刪除它
 @pytest.fixture
 def sending_user(mail_admin):
     user = mail_admin.create_user()    # 準備
@@ -138,11 +148,13 @@ def conn(request):
       "**覆寫（官方）：** 同名的 fixture 可以在三個層級覆寫：子資料夾的 `conftest.py`、測試模組、或在測試上直接參數化。覆寫的 fixture 還可以請求被它覆寫的那個同名 fixture，來延伸它：",
       C(String.raw`# 未執行。官方範例
 # tests/conftest.py
+# username：fixture。回傳預設的使用者名稱
 @pytest.fixture
 def username():
     return "username"
 
 # tests/subdir/conftest.py
+# username：覆寫上一層的同名 fixture，取用上一層的值再加前綴
 @pytest.fixture
 def username(username):                  # 同名，且請求上一層的 username 來延伸
     return "overridden-" + username
@@ -153,10 +165,12 @@ def test_username(username):
     assert username == "directly-overridden-username"`),
       "**工廠 fixture（官方）：** 當一個測試需要『建好幾個物件』時，fixture 回傳一個產生物件的函式，並記錄建出的東西，結束時一起清理：",
       C(String.raw`# 未執行。官方範例
+# make_customer_record：工廠 fixture。回傳一個用來建立客戶記錄的函式，並記下建立過的物件
 @pytest.fixture
 def make_customer_record():
     created_records = []
 
+    # _make_customer_record：實際建立客戶記錄的內部函式。輸入名稱；回傳記錄物件並存進列表
     def _make_customer_record(name):
         record = models.Customer(name=name, orders=[])
         created_records.append(record)
@@ -167,6 +181,7 @@ def make_customer_record():
     for record in created_records:       # 測試結束，統一清理
         record.destroy()
 
+# test_two_customers：用工廠 fixture 建立兩位客戶再進行檢查
 def test_two_customers(make_customer_record):
     a = make_customer_record("a")
     b = make_customer_record("b")`),
@@ -188,8 +203,9 @@ def test_two_customers(make_customer_record):
       { note: "**白話版：** 參數化是『同一份檢查，換很多組資料各跑一遍』；標記是『給測試貼標籤』，之後可以說『只跑貼了慢字標籤的』或『跳過沒有網路也過不了的』。測試一多，這兩個工具能幫你選著跑、分類跑。" },
       "**參數化（官方）：** `@pytest.mark.parametrize` 接受『參數名稱字串』與『一串值』，每組值跑一次測試。失敗時測試編號會帶出那組參數，例如 `test_eval[6*9-42]`。",
       C(String.raw`# 未執行。官方範例
-import pytest
+import pytest  # pytest：Python 的測試框架
 
+# test_eval：參數化測試。每組輸入與期望值各跑一次
 @pytest.mark.parametrize("test_input,expected", [("3+5", 8), ("2+4", 6), ("6*9", 42)])
 def test_eval(test_input, expected):
     assert eval(test_input) == expected     # 第三組會失敗，報告裡看得到是哪一組
@@ -197,6 +213,7 @@ def test_eval(test_input, expected):
 # 可以放在類別上，套用到類別裡所有測試（官方）
 @pytest.mark.parametrize("n,expected", [(1, 2), (3, 4)])
 class TestClass:
+    # test_simple_case：類別內的參數化測試，檢查 n 加 1 是否等於期望值
     def test_simple_case(self, n, expected):
         assert n + 1 == expected
 
@@ -205,11 +222,13 @@ class TestClass:
     "test_input,expected",
     [("3+5", 8), ("2+4", 6), pytest.param("6*9", 42, marks=pytest.mark.xfail)],
 )
+# test_eval2：參數化測試，其中一組用 pytest.param 標成預期會失敗
 def test_eval2(test_input, expected):
     assert eval(test_input) == expected     # 6*9 那組報告成 xfailed，不算失敗
 
 # 疊兩層 parametrize：所有組合都會跑（官方）。這裡共 4 組：
 #   (x=0,y=2) (x=1,y=2) (x=0,y=3) (x=1,y=3)
+# test_foo：疊兩層 parametrize，x 與 y 的所有組合都會執行
 @pytest.mark.parametrize("x", [0, 1])
 @pytest.mark.parametrize("y", [2, 3])
 def test_foo(x, y):
@@ -245,9 +264,10 @@ def test_foo(x, y):
         ["importorskip", "匯入不到某模組就跳過", "`docutils = pytest.importorskip(\"docutils\")`，也可檢查 minversion"],
       ] } },
       C(String.raw`# 未執行。官方範例
-import sys
-import pytest
+import sys  # sys：Python 直譯器相關（參數、路徑）
+import pytest  # pytest：Python 的測試框架
 
+# test_windows_only：只在 Windows 上才會執行的測試，其他平台會被跳過
 @pytest.mark.skipif(sys.platform != "win32", reason="只在 Windows 上有意義")   # 條件由你自己決定
 def test_windows_only(): ...
 
@@ -290,11 +310,13 @@ def test_windows_only(): ...
 #       return call_llm(q).strip()
 import app.chat
 
+# test_answer：用 monkeypatch 把 call_llm 換成假的，測 answer 會去掉前後空白
 def test_answer(monkeypatch):
     # 要換的是 app.chat.call_llm（chat 模組裡查找的名字），不是 app.llm.call_llm
     monkeypatch.setattr(app.chat, "call_llm", lambda q: "  假的回答  ")
     assert app.chat.answer("hi") == "假的回答"       # 沒有真的呼叫 API
 
+# test_key：用 monkeypatch 設定與刪除環境變數，測試結束後自動還原
 def test_key(monkeypatch):
     monkeypatch.setenv("API_KEY", "test-key")        # 測試結束自動還原
     monkeypatch.delenv("PROXY", raising=False)       # 不存在也不報錯`),
@@ -307,8 +329,9 @@ def test_key(monkeypatch):
         "**assert_called_once_with(...)：** 只有在被呼叫『剛好一次』且參數相符時才通過；`assert_called_with()` 只檢查最近一次；`assert_any_call()` 只要曾經有過一次就通過。",
       ] },
       C(String.raw`# 未執行。官方風格範例，搭配本站課文的假設函式 call_llm
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch  # MagicMock：可以假裝成任何物件的測試替身；patch：測試期間暫時把某個物件換成替身
 
+# test_retry_on_error：用 MagicMock 讓第一次呼叫失敗、第二次成功，測重試邏輯
 def test_retry_on_error():
     fake = MagicMock()
     # 第一次呼叫丟例外，第二次回傳正常結果：測『失敗後重試』的邏輯
@@ -350,11 +373,12 @@ def test_retry_on_error():
       ] } },
       "**最簡單可靠的起點：臨時 SQLite 檔加 `create_all`。** 用到的 `tmp_path` 是 pytest 官方的暫存資料夾；`create_engine`、`create_all`、`sessionmaker` 都在這一組前面的課講過：",
       C(String.raw`# 未執行。tests/conftest.py
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import pytest  # pytest：Python 的測試框架
+from sqlalchemy import create_engine  # create_engine：建立資料庫連線引擎
+from sqlalchemy.orm import sessionmaker  # sessionmaker：產生 Session 的工廠
 from myapp.models import Base          # 換成你自己的模型位置
 
+# engine：fixture。在暫存資料夾為每個測試建一個 SQLite 資料庫，回傳連線引擎
 @pytest.fixture
 def engine(tmp_path):
     # 每個測試一個新的資料庫檔，放在 pytest 的暫存資料夾（官方：每個測試函式一個）
@@ -364,6 +388,7 @@ def engine(tmp_path):
     yield eng                            # 交給測試
     eng.dispose()                        # 測試結束：關掉連線池（fixture 清理，見本組第 2 課）
 
+# session：fixture。用引擎開一個資料庫工作階段，測試結束後自動關閉
 @pytest.fixture
 def session(engine):
     SessionLocal = sessionmaker(engine, expire_on_commit=False)   # SQLAlchemy 那組第 2 課
@@ -371,27 +396,31 @@ def session(engine):
         yield s
 
 # 測試本身
+# test_create_user：新增一位使用者再查詢，驗證資料有寫進資料庫
 def test_create_user(session):
-    from sqlalchemy import select
-    from myapp.models import User
+    from sqlalchemy import select  # select：組出 SELECT 查詢
+    from myapp.models import User  # User：示範用的使用者資料表模型
     session.add(User(name="a", fullname="A"))
     session.commit()
     users = session.scalars(select(User)).all()    # 2.0 風格查詢（SQLAlchemy 那組第 4 課）
     assert len(users) == 1`),
       "**把測試資料庫接進 FastAPI（接上 [[fw-01]]）：** FastAPI 的 `dependency_overrides` 可以把『取得正式 Session』的依賴換成『取得測試 Session』，這樣打 API 的測試完全不碰正式資料庫。`TestClient` 與 `dependency_overrides` 的基本寫法已在 [[fw-01]] 的最後一課說明，這裡只示範接上上面的 fixture：",
       C(String.raw`# 未執行。承上，接著放在同一個 conftest.py
-import pytest
-from fastapi.testclient import TestClient
+import pytest  # pytest：Python 的測試框架
+from fastapi.testclient import TestClient  # TestClient：不開伺服器、直接在程式裡呼叫應用以便測試
 from myapp.main import app, get_session      # 換成你自己的 app 與取得 Session 的依賴函式
 
+# client：fixture。把 API 的資料庫依賴換成測試用的 Session，回傳測試用戶端
 @pytest.fixture
 def client(session):
+    # override：替身依賴，改為提供測試用的 Session
     def override():
         yield session                          # 用測試的 Session 取代正式的
     app.dependency_overrides[get_session] = override    # 鍵是原依賴函式，值是替身（fw-fa-07）
     yield TestClient(app)
     app.dependency_overrides.clear()           # 重要：全域字典，用完一定要清掉，否則污染後面的測試
 
+# test_create_item：用測試用戶端 POST /items，檢查回應狀態碼
 def test_create_item(client):
     r = client.post("/items", json={"name": "a"})
     assert r.status_code == 200`),
@@ -420,7 +449,7 @@ def test_create_item(client):
         ["整個流程真的接得起來", "少量整合測試，用標記分類（預設不跑，見下面）", "會花錢、慢、不穩定"],
       ] } },
       C(String.raw`# 未執行。測『壞掉的模型回傳』與『重試』，假設有一個 parse_answer 函式
-import pytest
+import pytest  # pytest：Python 的測試框架
 
 @pytest.mark.parametrize("raw, expected", [
     ('{"answer": "42"}', "42"),                 # 正常
@@ -428,11 +457,14 @@ import pytest
     pytest.param("not json", None, id="不是JSON"),   # 壞掉：期望回傳 None 或你定義的行為
     pytest.param('{"other": 1}', None, id="缺欄位"),
 ])
+# test_parse_answer：參數化測試，驗證 parse_answer 對多種輸入的輸出
 def test_parse_answer(raw, expected):
     assert parse_answer(raw) == expected        # parse_answer 是你自己的函式，這裡是示意
 
+# test_gives_up_after_retries：讓 call_llm 一直失敗，驗證重試用盡後會放棄
 def test_gives_up_after_retries(monkeypatch):
     calls = []
+    # always_fail：替身函式。記下被呼叫的問題，並一律丟出 TimeoutError
     def always_fail(q):
         calls.append(q)
         raise TimeoutError("boom")
@@ -451,9 +483,10 @@ def test_gives_up_after_retries(monkeypatch):
 # addopts = ["--strict-markers"]
 
 # 整合測試預設不跑：用 skipif 判斷有沒有授權開關（開關名稱是我自己取的）
-import os
-import pytest
+import os  # os：作業系統功能（路徑、環境變數）
+import pytest  # pytest：Python 的測試框架
 
+# test_real_llm_call：真的呼叫模型的測試，通常用標記分開，只在需要時才執行
 @pytest.mark.integration
 @pytest.mark.skipif(os.environ.get("RUN_INTEGRATION") != "1", reason="需要明確開啟才會呼叫真實 API")
 def test_real_llm_call():
