@@ -423,6 +423,18 @@ const TREE = [
         ],
       },
       {
+        id: "tool-docker-think", group: "開發工具", name: "Docker 入門思路",
+        summary: "先想清楚再動手：環境確認、搬家清單、Dockerfile、compose、卡住時怎麼查",
+        points: [
+          { t: "Docker 到底在解決什麼", body: "dkt-01" },
+          { t: "安裝與環境確認（Windows）", body: "dkt-02" },
+          { t: "思路：先寫搬家清單", body: "dkt-03" },
+          { t: "把清單翻成 Dockerfile", body: "dkt-04" },
+          { t: "把「合作」與「保留」寫成 yaml", body: "dkt-05" },
+          { t: "卡住時的檢查順序", body: "dkt-06" },
+        ],
+      },
+      {
         id: "tool-docker", group: "開發工具", name: "Docker 基礎",
         summary: "把程式與環境一起打包，方便部署",
         points: [

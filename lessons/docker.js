@@ -77,15 +77,23 @@ fastapi
 uvicorn`),
 
       "**Dockerfile：**",
-      C(String.raw`FROM python:3.12-slim              # 以哪個映像為基礎
-WORKDIR /app                       # 容器內的工作資料夾（之後的指令都在這裡執行）
+      C(String.raw`# 注意：Dockerfile 的註解必須獨佔一行，寫在指令後面的 # 會被當成參數
+# FROM：以哪個映像為基礎
+FROM python:3.12-slim
+# WORKDIR：容器內的工作資料夾（之後的指令都在這裡執行）
+WORKDIR /app
 
-COPY requirements.txt .            # 先只複製「套件清單」
-RUN pip install --no-cache-dir -r requirements.txt   # 安裝套件
+# COPY：先只複製「套件清單」
+COPY requirements.txt .
+# RUN：安裝套件
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .                           # 再複製所有程式碼
+# COPY：再複製所有程式碼
+COPY . .
 
-EXPOSE 8000                        # 說明這個服務使用 8000 埠（只是註記）
+# EXPOSE：說明這個服務使用 8000 埠（只是註記）
+EXPOSE 8000
+# CMD：容器啟動時執行的指令
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]`),
       { list: [
         "`FROM`：基礎映像，每份 Dockerfile 的第一行",
@@ -119,6 +127,7 @@ docker run -d -p 8000:8000 --env-file .env my-api          # 從 .env 檔讀取�
         "服務綁在 `127.0.0.1`：容器內的 `127.0.0.1` 外面連不到。啟動伺服器要用 `--host 0.0.0.0`（原理見「網路基礎」的 TCP / IP 那一課）。這是容器化後最常見的「明明有跑卻連不上」。",
         "沒寫 `.dockerignore`：把 `.venv`、`.env`、`.git` 都打包進映像，映像變得很肥，**金鑰也一起被打包進去**。",
         "把 `COPY . .` 寫在 `pip install` 之前：每次改一行程式碼，套件就要重新安裝，建置很慢。",
+        "把註解寫在指令後面（`FROM python:3.12-slim # 說明`）：官方說明 Dockerfile 只有「行首的 #」是註解，寫在行中的 # 會被當成參數。註解要獨佔一行。",
         "`CMD` 的 JSON 陣列用了單引號：`CMD ['uvicorn', ...]` 無效，必須是**雙引號**。",
         "把金鑰寫進 `ENV` 或 `ARG`：會永久留在映像的歷史紀錄裡，任何拿到映像的人都看得到。",
         "Windows 編輯的 shell 腳本是 CRLF 換行：在 Linux 容器裡執行出現 `exec format error` 或 `bad interpreter: /bin/sh^M`。把腳本存成 LF 換行（VS Code 右下角可切換）。",

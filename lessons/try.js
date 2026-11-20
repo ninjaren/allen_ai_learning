@@ -11,6 +11,7 @@ window.TRY_BY_PREFIX = {
   "ts": [["TypeScript Playground（官方）", "https://www.typescriptlang.org/play"], ["StackBlitz（瀏覽器內的 Node 專案）", "https://stackblitz.com/"]],
   "sql": [["SQLite Online（網頁執行 SQL）", "https://sqliteonline.com/"]],
   "sh": [["Killercoda（瀏覽器內的 Linux 終端機）", "https://killercoda.com/"]],
+  "dkt": [["Play with Docker（瀏覽器內的 Docker 環境）", "https://labs.play-with-docker.com/"]],
   "dk": [["Play with Docker（瀏覽器內的 Docker 環境）", "https://labs.play-with-docker.com/"]],
   "git": [["Learn Git Branching（圖形化練習 Git）", "https://learngitbranching.js.org/?locale=zh_TW"]],
   "rust": [["Rust Playground（官方）", "https://play.rust-lang.org/"]],

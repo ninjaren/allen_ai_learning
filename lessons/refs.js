@@ -69,6 +69,12 @@ window.REFS = {
   "sql-14": [["Cloudflare D1 文件", "https://developers.cloudflare.com/d1/"], ["D1 Worker API", "https://developers.cloudflare.com/d1/worker-api/"], ["Wrangler 指令：d1", "https://developers.cloudflare.com/workers/wrangler/commands/#d1"]],
 
   // ───────── Docker ─────────
+  "dkt-01": [["Docker：什麼是容器", "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/"], ["Docker：什麼是映像", "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/"], ["Docker Hub：python 映像", "https://hub.docker.com/_/python"]],
+  "dkt-02": [["Docker Desktop：Windows 安裝", "https://docs.docker.com/desktop/setup/install/windows-install/"], ["Microsoft：安裝 WSL（繁中）", "https://learn.microsoft.com/zh-tw/windows/wsl/install"], ["Docker Desktop：疑難排解", "https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/"]],
+  "dkt-03": [["Docker：入門", "https://docs.docker.com/get-started/"]],
+  "dkt-04": [["Dockerfile 參考（含註解規則）", "https://docs.docker.com/reference/dockerfile/"], ["Dockerfile 最佳實務", "https://docs.docker.com/build/building/best-practices/"], ["Docker CLI 指令參考", "https://docs.docker.com/reference/cli/docker/"]],
+  "dkt-05": [["Docker Compose 入門", "https://docs.docker.com/compose/gettingstarted/"], ["Compose 檔案：services 參考", "https://docs.docker.com/reference/compose-file/services/"], ["Docker Hub：redis 映像", "https://hub.docker.com/_/redis"]],
+  "dkt-06": [["docker container ls", "https://docs.docker.com/reference/cli/docker/container/ls/"], ["docker container logs", "https://docs.docker.com/reference/cli/docker/container/logs/"], ["docker container exec", "https://docs.docker.com/reference/cli/docker/container/exec/"]],
   "dk-01": [["Docker：入門", "https://docs.docker.com/get-started/"], ["Docker Desktop：Windows 安裝", "https://docs.docker.com/desktop/setup/install/windows-install/"], ["Docker CLI 指令參考", "https://docs.docker.com/reference/cli/docker/"]],
   "dk-02": [["Dockerfile 參考", "https://docs.docker.com/reference/dockerfile/"], ["Dockerfile 最佳實務", "https://docs.docker.com/build/building/best-practices/"]],
   "dk-03": [["Docker：Volumes", "https://docs.docker.com/engine/storage/volumes/"], ["Docker：Bind mounts", "https://docs.docker.com/engine/storage/bind-mounts/"], ["Docker：網路", "https://docs.docker.com/engine/network/"]],
