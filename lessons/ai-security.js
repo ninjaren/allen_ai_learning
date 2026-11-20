@@ -40,8 +40,9 @@ window.LESSON = window.LESSON || {};
         "**篩選工具輸出再讓模型行動：** 對使用者輸入用的小模型篩選法，也可以用在工具回傳的內容上。",
       ] },
       "把 JSON 編碼與 `tool_result` 的做法跑一遍（用假的 API 回應，確認送出的請求結構）：",
-      C(String.raw`import json
+      C(String.raw`import json  # json：讀寫 JSON
 
+# wrap_untrusted：把不可信的外部內容包成 JSON 資料，標明來源，輸入來源與欄位，輸出 JSON 字串（引號會被跳脫，內文跳不出資料區）
 def wrap_untrusted(source, **fields):
     return json.dumps({"source": source, **fields}, ensure_ascii=False)
 
@@ -70,6 +71,7 @@ r = client.messages.create(
     "reply":           {"read_email", "send_email"},
 }
 
+# gate：工具呼叫的閘門，輸入任務、工具名、參數與使用者是否已確認，輸出 allow、need_confirm 或 deny 加原因
 def gate(task, tool, args, user_confirmed=False):
     if tool not in ALLOWED_BY_TASK.get(task, set()):
         return "deny: 此任務不允許工具 " + tool
@@ -124,7 +126,7 @@ print(gate("reply", "send_email", {"to": "a@mycompany.com"}, user_confirmed=True
         "官方文件特別說明，**Claude Haiku 5.5 自己有安全分類器，可能直接拒絕這個篩選請求，所以 `stop_reason` 是 `refusal` 要當成「有害」的判定**。",
       ] },
       "這個細節很容易漏掉，漏掉就會把最有害的輸入判成通過。實際跑過請求結構（假的 API 回應）：",
-      C(String.raw`from pydantic import BaseModel
+      C(String.raw`from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class Verdict(BaseModel):
     is_harmful: bool
@@ -133,6 +135,7 @@ SCHEMA = {"type": "object",
           "properties": {"is_harmful": {"type": "boolean"}},
           "required": ["is_harmful"], "additionalProperties": False}
 
+# screen：請小模型判斷內容是否有害，輸入文字，輸出 True（有害或被拒答）或 False
 def screen(text):
     r = client.messages.create(
         model="claude-haiku-5-5", max_tokens=50,
@@ -159,10 +162,11 @@ def screen(text):
         "**格式與內容驗證：** 輸出是否符合預期的結構（見最後一課）。",
       ] },
       "外洩偵測的最小版本（實際跑過）：",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
 CANARY = "CANARY-7f3a91"     # 放進系統提示詞裡的唯一標記，正常回答不會出現
 
+# check_output：檢查模型輸出有沒有洩漏系統提示（金絲雀）或夾帶外部圖片網址，輸入文字與允許網域，輸出問題清單
 def check_output(text, allowed_hosts=("mycompany.com",)):
     problems = []
     if CANARY in text:
@@ -222,7 +226,7 @@ print(check_output("一般回答"))
       ] },
 
       "**一、送到模型之前先遮蔽（masking）。** 最直接的方法：在呼叫模型前，把敏感欄位換成佔位符，模型看到的是 `<EMAIL_1>`；拿到回答後再把佔位符換回真實值。模型只需要「這裡有個信箱」，通常不需要真正的信箱。實際跑過一個最小版本，還加上了**格式驗證**以降低誤判：",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
 def tw_id_valid(s):
     """台灣身分證字號檢查碼驗證：首碼字母轉兩位數，加權總和為 10 的倍數"""
@@ -237,15 +241,18 @@ def tw_id_valid(s):
 print([tw_id_valid(x) for x in ["A123456789", "A123456788", "B100000000", "a123456789", "A323456789"]])
 # [True, False, False, False, False]       只有第一個通過檢查碼；第 2 個檢查碼錯，第 5 個性別碼不是 1/2
 
+# luhn：用 Luhn 演算法檢查信用卡卡號格式，輸入數字字串，輸出 True 或 False
 def luhn(num):                                  # 信用卡卡號的 Luhn 檢查
     ds = [int(c) for c in num][::-1]
     return sum(d if i % 2 == 0 else (d * 2 - 9 if d * 2 > 9 else d * 2) for i, d in enumerate(ds)) % 10 == 0
 print(luhn("4111111111111111"), luhn("4111111111111112"))      # True False（4111… 是常見的測試卡號）`),
       "（這兩個檢查碼演算法我用程式實作並測過上面幾個例子，台灣身分證檢查碼的演算法請以官方規則為準。）接著是遮蔽與還原：同一個值要得到同一個佔位符（`ming@x.com` 出現兩次都是 `<EMAIL_1>`），這樣模型才知道是同一個人：",
       C(String.raw`class Masker:
+    # __init__：建立遮蔽器，準備放佔位符與真實值對照的字典
     def __init__(self):
         self.map = {}                              # 佔位符 → 真實值（只留在記憶體，不要寫進日誌）
 
+    # _tok：替一個真實值取得佔位符，同值重複出現用同一個，輸入類別與真實值，輸出佔位符
     def _tok(self, kind, val):
         for k, v in self.map.items():
             if v == val:
@@ -254,6 +261,7 @@ print(luhn("4111111111111111"), luhn("4111111111111112"))      # True False（41
         self.map[t] = val
         return t
 
+    # mask：把文字裡的個資換成佔位符，輸入文字，輸出遮蔽後的文字
     def mask(self, text):
         text = re.sub(r"[\w.+-]+@[\w-]+\.[\w.]+", lambda m: self._tok("EMAIL", m.group()), text)
         text = re.sub(r"\b09\d{2}-?\d{3}-?\d{3}\b", lambda m: self._tok("PHONE", m.group()), text)
@@ -263,6 +271,7 @@ print(luhn("4111111111111111"), luhn("4111111111111112"))      # True False（41
                       lambda m: self._tok("CARD", m.group()) if luhn(re.sub(r"\D", "", m.group())) else m.group(), text)
         return text
 
+    # unmask：把佔位符還原成真實值，輸入文字，輸出還原後的文字
     def unmask(self, text):
         for k, v in self.map.items():
             text = text.replace(k, v)
@@ -339,10 +348,11 @@ print(m.mask(src))
       ] },
 
       "**二、檔案存取：限制在一個工作目錄內。** 常見漏洞是路徑穿越（`../../etc/passwd`、`..\\..\\Windows`）。做法：把路徑解析成絕對路徑，再檢查它是否仍在根目錄之內（這是 Agent 階段記憶工具用的同一招，實際跑過）：",
-      C(String.raw`import pathlib, tempfile
+      C(String.raw`import pathlib, tempfile  # pathlib：以物件處理檔案路徑；tempfile：建立暫存檔與資料夾
 
 ROOT = pathlib.Path(tempfile.mkdtemp()).resolve()      # 工作目錄（示範用臨時目錄）
 
+# safe_path：把相對路徑接到工作目錄並確認沒跳出去，輸入相對路徑，輸出真實路徑；超出範圍丟 PermissionError
 def safe_path(rel):
     p = (ROOT / rel).resolve()                          # resolve 會處理 .. 與符號連結
     if not p.is_relative_to(ROOT):
@@ -362,13 +372,14 @@ for rel in ["ok.txt", "../secret.txt", "sub/../ok.txt", "C:/Windows/win.ini", ".
       "注意要用 `resolve()` 再比對，**不能只檢查字串裡有沒有 `..`**。",
 
       "**三、執行指令：允許清單，不要把模型寫的字串丟給 shell。** 絕對不要 `subprocess.run(model_output, shell=True)`——模型（或注入）能直接組出任何指令。安全的做法：只允許預先定義好的指令（名稱對應固定的參數陣列），`shell=False`，加上逾時、固定工作目錄，並且**清空環境變數**，只留必要的，以免金鑰被子行程看到。實際跑過：",
-      C(String.raw`import subprocess, sys, os
+      C(String.raw`import subprocess, sys, os  # subprocess：執行外部程式；sys：Python 直譯器相關（參數、路徑）；os：作業系統功能（路徑、環境變數）
 
 ALLOWED = {
     "python_version": [sys.executable, "--version"],
     "list": ["cmd", "/c", "dir", "/b"],                  # Windows；Linux 用 ["ls"]
 }
 
+# run_cmd：只執行允許清單內的固定指令，輸入指令名稱，輸出標準輸出文字
 def run_cmd(name):
     if name not in ALLOWED:
         raise PermissionError("不在允許清單: " + name)
@@ -445,7 +456,7 @@ docker run --rm ^
       "**步驟一：先寫政策，不是先寫提示詞。** 你要審查什麼？寫成明確的類別與等級，而且是**你的產品的政策**，不是模型的默認判斷。例如：垃圾訊息、騷擾、色情、暴力、自傷、違法。每個類別定義清楚、附正反例子、說明邊界（例如「新聞報導暴力」與「煽動暴力」不同）。政策不清，模型與人工審查員都會不一致。",
 
       "**步驟二：用結構化輸出做分類。** 讓模型回傳固定格式：類別與嚴重度。用 Pydantic 驗證，值超出範圍就視為失敗（結構化輸出的做法見 LLM 任務階段）：",
-      C(String.raw`from pydantic import BaseModel, Field, ValidationError
+      C(String.raw`from pydantic import BaseModel, Field, ValidationError  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定；ValidationError：資料驗證失敗時丟出的例外
 
 class Moderation(BaseModel):
     category: str = Field(description="none/spam/harassment/sexual/violence/self_harm/illegal")
@@ -457,7 +468,8 @@ except ValidationError as e:
     print("驗證擋住:", e.errors()[0]["type"])        # 驗證擋住: less_than_equal（severity 超出範圍）`),
 
       "**步驟三：分流，不要只有『通過／封鎖』兩種。** 依類別與嚴重度決定動作。最重要的設計是**要有『交給人』的出口**，以及自傷類別的特殊處理：",
-      C(String.raw`def route(mod):
+      C(String.raw`# route：依審核結果決定處理方式，輸入審核結果，輸出 block、human_review、allow 或轉人工
+def route(mod):
     if mod.category == "self_harm":
         return "escalate_human_and_resources"     # 不自動封鎖：要人處理，並提供求助資源
     if mod.severity >= 3:
@@ -525,7 +537,7 @@ for c, s in [("none", 0), ("spam", 1), ("harassment", 2), ("violence", 3), ("sel
         "**L5 人工或明確的暫停訊息：** 轉人工客服、留言、或「AI 功能暫停，請聯絡客服」。",
       ] },
       "實際跑過一個最小版本（用模擬故障的方式讓各層失效，確認每一層都走得到）：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 CACHE = {"退貨": "7 日內可退貨"}
 
@@ -614,13 +626,14 @@ print(answer("退貨", kill_switch=True))     # ('L5', 'AI 功能暫停，請聯
         "業務規則（需要跨欄位或查資料才能判斷的）。",
       ] },
       "例子是產生退款單：",
-      C(String.raw`from pydantic import BaseModel, Field, ValidationError
+      C(String.raw`from pydantic import BaseModel, Field, ValidationError  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定；ValidationError：資料驗證失敗時丟出的例外
 
 class Refund(BaseModel):
     order_id: str = Field(pattern=r"^ORD-\d{6}$")      # 格式
     amount: float = Field(gt=0)                         # 範圍
     reason: str
 
+# business_rules：檢查商業規則（金額不超過訂單、超過 5000 需人工核准），輸入退款物件與訂單金額，輸出錯誤清單
 def business_rules(r, order_total):
     errs = []
     if r.amount > order_total:
@@ -630,7 +643,8 @@ def business_rules(r, order_total):
     return errs`),
 
       "**三、驗證失敗時：把錯誤回饋給模型，讓它修正（有上限的重試）。** 這比單純重打同一個請求有效，因為模型知道哪裡錯。要有**最大次數**，超過就走失敗處理（降級或轉人工），不要無限迴圈。實際跑過（假的 API 回應：第一次格式與金額都錯、第二次超額、第三次通過）：",
-      C(String.raw`def get_validated(question, order_total, max_attempts=3):
+      C(String.raw`# get_validated：請模型輸出退款 JSON，驗證不過就把錯誤回饋給它重試，輸入問題、訂單金額與最大次數，輸出（次數，通過的物件或 None）
+def get_validated(question, order_total, max_attempts=3):
     messages = [{"role": "user", "content": question}]
     for attempt in range(1, max_attempts + 1):
         r = client.messages.create(model="claude-sonnet-5-5", max_tokens=200, messages=messages)

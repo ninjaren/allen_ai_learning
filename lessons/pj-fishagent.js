@@ -119,9 +119,9 @@ Remove-Item fishqa\llm.py`),
       "**第三步：把釣點資料匯出成專案自己的小資料庫。** 不要讓 Agent 直接去讀你平台的 users.db。",
       C(String.raw`"""從釣魚平台的資料庫，只匯出釣點資料表的必要欄位，放進這個專案自己的小資料庫。
 為什麼不直接讀原本的資料庫？那裡面還有使用者帳號與其他個資。工具只該拿到它需要的資料（最小權限原則）。"""
-import sqlite3
-import sys
-from pathlib import Path
+import sqlite3  # sqlite3：內建的 SQLite 資料庫
+import sys  # sys：Python 直譯器相關（參數、路徑）
+from pathlib import Path  # Path：處理檔案路徑的物件
 
 # 來源資料庫的路徑：可以從命令列傳入，沒傳就用預設（換成你自己的路徑）
 SRC = sys.argv[1] if len(sys.argv) > 1 else r"F:\python_project\real_live\users.db"
@@ -174,10 +174,10 @@ for env, n in dst.execute("SELECT spot_env, COUNT(*) FROM spots GROUP BY spot_en
       { note: "**為什麼這樣做：** 為什麼不直接把函式丟給模型，而要自己做一個 Tool 格式？因為 Claude 和 Gemini 描述工具的寫法不一樣（下一課會看到）。我們先定義一個和任何一家都無關的 Tool，之後各家只要『翻譯』一次就好，這和專案 1 的 llm.py 是同一個思路。另外，用 Pydantic 描述參數，同一份定義可以同時產生『給模型看的說明書』和『檢查模型給的參數對不對』的驗證，不用寫兩份。" },
       "**步驟一：寫工具的共同格式，fishagent/tooling.py。**",
       C(String.raw`"""工具的共同格式。不管哪家模型，工具都長這樣。"""
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from dataclasses import dataclass, field  # dataclass：用裝飾器快速定義資料類別；field：設定 dataclass 欄位的預設值等細節
+from typing import Any, Callable  # Any：表示任意型別；Callable：標註『可以被呼叫的東西』（函式）
 
-from pydantic import BaseModel
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 
 def strip_titles(schema: Any) -> Any:
@@ -231,16 +231,16 @@ class Turn:
       ] },
       "**步驟二：寫第一個工具，fishagent/tools.py 的開頭與 find_spots。**",
       C(String.raw`"""四個工具：查釣點、查海況、查知識庫、查我的出釣紀錄。"""
-import json
-import os
-import sqlite3
-from datetime import date as Date
-from pathlib import Path
+import json  # json：讀寫 JSON
+import os  # os：作業系統功能（路徑、環境變數）
+import sqlite3  # sqlite3：內建的 SQLite 資料庫
+from datetime import date as Date  # date：日期型別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
-from . import scoring, weather
-from .tooling import Tool
+from . import scoring, weather  # scoring：評分函式模組；weather：天氣資料模組
+from .tooling import Tool  # Tool：一個工具：名稱、說明、參數格式與執行函式
 
 SPOTS_DB = "data/spots.db"
 TRIPS_JSON = "data/trips.json"
@@ -265,6 +265,7 @@ def _spots_conn() -> sqlite3.Connection:
     limit: int = Field(5, ge=1, le=10, description="最多回傳幾筆")      # ge/le：限制 1 到 10，避免一次回傳太多
 
 
+# find_spots：工具函式。輸入地區、水域、類型、關鍵字與筆數上限；先檢查可填的值，合法才查釣點並回傳結果文字
 def find_spots(region: str, water: str, kind: str, keyword: str, limit: int):
     # 先檢查可填的值。不合法就回傳一段說明（不是丟例外），模型讀到後會自己改填再試一次
     for value, allowed, label in [(region, REGIONS, "region"), (water, WATERS, "water"), (kind, KINDS, "kind")]:
@@ -345,10 +346,10 @@ limit
       { note: "**白話版：** 第二個工具要連到外面的服務，去查某個地點某一天的浪高、風速、氣壓，再用你自己寫的評分規則換算成『適不適合出釣』。這一課你會碰到真實世界的麻煩：網路偶爾斷、資料不適用、使用者問的日期超出範圍。工具要把這些情況都處理好，並用模型看得懂的話說出來。" },
       "**步驟一：寫取得海況資料的程式，fishagent/weather.py。** 它做的事和你平台裡的 `services/marine.py` 一樣，差別是改用 `requests`，並且加上重試。",
       C(String.raw`"""向 Open-Meteo 取得逐時的浪況與風況（免金鑰），整理成 scoring.py 吃得懂的格式。"""
-import time
-from typing import Optional
+import time  # time：計時與暫停
+from typing import Optional  # Optional：標註『可以是某型別或 None』
 
-import requests
+import requests  # requests：發送 HTTP 請求
 
 MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"      # 浪況（浪高、週期、浪向）
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"          # 風與氣壓
@@ -417,6 +418,7 @@ def get_hourly(lat: float, lng: float, days: int = 7) -> list[dict]:
     date: str = Field("", description="日期 YYYY-MM-DD，未來 7 天內；留空代表今天")
 
 
+# get_sea_conditions：工具函式。輸入釣點編號與日期；查出釣點後回傳該日的海況文字
 def get_sea_conditions(spot_id: int, date: str):
     with _spots_conn() as conn:
         row = conn.execute("SELECT * FROM spots WHERE id = ?", (spot_id,)).fetchone()
@@ -533,18 +535,19 @@ def _get_engine():
         from fishqa.chunking import load_corpus          # 延遲匯入：用到才匯入，沒用到的套件不必載入
         chunks = load_corpus("data/knowledge")
         if os.getenv("KB_MODE", "keyword") == "hybrid":
-            from fishqa.embed import GeminiEmbedder, embed_chunks_cached
-            from fishqa.search import SearchEngine
-            from fishqa.store import NumpyStore
+            from fishqa.embed import GeminiEmbedder, embed_chunks_cached  # GeminiEmbedder：用 Gemini 把文字轉成向量的嵌入器；embed_chunks_cached：算段落向量並快取到磁碟，只補算新增或改過的段落
+            from fishqa.search import SearchEngine  # SearchEngine：把不同檢索方式統一成同一種呼叫
+            from fishqa.store import NumpyStore  # NumpyStore：放在記憶體、用 numpy 算相似度的向量庫
             embedder = GeminiEmbedder()
             _engine = SearchEngine(chunks, embedder, NumpyStore(chunks, embed_chunks_cached(embedder, chunks)))
         else:
-            from fishqa.keyword import BM25
+            from fishqa.keyword import BM25  # BM25：BM25 關鍵字檢索
 
             class KeywordOnly:
                 """只用關鍵字檢索的簡化引擎；取名 hybrid 是為了和完整引擎有同樣的呼叫方式。"""
                 bm25 = BM25(chunks)
 
+                # hybrid：只用 BM25 關鍵字檢索的簡化版，回傳前 k 段落（呼叫方式和混合檢索一致）
                 def hybrid(self, q, k):
                     return [c for c, _ in self.bm25.search(q, k)]
 
@@ -552,6 +555,7 @@ def _get_engine():
     return _engine
 
 
+# search_knowledge：工具函式。輸入問題與 k；檢索知識庫段落，沒有相關內容就回傳說明文字
 def search_knowledge(query: str, k: int):
     chunks = _get_engine().hybrid(query, k)
     if not chunks:
@@ -573,6 +577,7 @@ def search_knowledge(query: str, k: int):
     spot_keyword: str = Field("", description="釣點名稱裡要有的字；不限制就留空")
 
 
+# my_trips：工具函式。輸入月份與釣點關鍵字；讀出釣紀錄 JSON 並統計，檔案不存在就回傳說明文字
 def my_trips(month: str, spot_keyword: str):
     path = Path(TRIPS_JSON)
     if not path.exists():
@@ -678,12 +683,12 @@ def my_trips(month: str, spot_keyword: str):
       ] } },
       "**步驟：把專案 1 的 llm.py 擴充成支援工具。** 你有兩種做法：改專案 1 的檔案，或複製成這個專案自己的版本。我們選後者（見第 1 課）。下面是完整的 fishagent/llm.py，`extract` 與 `text` 和專案 1 一樣，新增的是兩個 Session 類別與 `session()` 方法：",
       C(String.raw`"""把不同家的 LLM 包成同一個介面。這一版比專案 1 多了 session()：讓模型可以呼叫工具。"""
-import os
-from typing import Protocol, TypeVar
+import os  # os：作業系統功能（路徑、環境變數）
+from typing import Protocol, TypeVar  # Protocol：定義介面（只要有這些方法就算符合）；TypeVar：宣告泛型的型別變數
 
-from pydantic import BaseModel
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
-from .tooling import Tool, ToolCall, Turn
+from .tooling import Tool, ToolCall, Turn  # Tool：一個工具：名稱、說明、參數格式與執行函式；ToolCall：模型提出的一次工具呼叫請求；Turn：模型的一次回應（文字或工具呼叫請求）
 
 T = TypeVar("T", bound=BaseModel)
 ToolResult = tuple[ToolCall, str, bool]          # (哪一次呼叫, 結果文字, 是不是錯誤)
@@ -692,15 +697,20 @@ ToolResult = tuple[ToolCall, str, bool]          # (哪一次呼叫, 結果文�
 class Session(Protocol):
     """一段進行中的對話，記得前面發生過什麼。Agent 迴圈只要不斷「送使用者訊息」與「送工具結果」。"""
 
+    # send_user：介面方法。送出使用者訊息，回傳模型這一輪的回應（Turn）
     def send_user(self, text: str) -> Turn: ...
+    # send_results：介面方法。把工具執行結果送回模型，回傳下一輪回應
     def send_results(self, results: list[ToolResult]) -> Turn: ...
 
 
 class LLM(Protocol):
     name: str
 
+    # extract：介面方法。回傳驗證過的結構化物件
     def extract(self, system: str, user: str, schema: type[T]) -> T: ...
+    # text：介面方法。回傳純文字
     def text(self, system: str, user: str) -> str: ...
+    # session：介面方法。開一段可以呼叫工具的對話
     def session(self, system: str, tools: list[Tool]) -> Session: ...      # 這一版新增的
 
 
@@ -709,6 +719,7 @@ class LLM(Protocol):
 class ClaudeSession:
     """Claude 的對話：歷史訊息由我們自己保存，每次呼叫都整份送出。"""
 
+    # __init__：記下用戶端、模型與系統提示，並把我們的 Tool 翻譯成 Claude 的工具格式
     def __init__(self, client, model: str, system: str, tools: list[Tool]):
         self.client, self.model, self.system = client, model, system
         # 把我們的 Tool 翻譯成 Claude 的格式：名稱、說明、input_schema
@@ -716,6 +727,7 @@ class ClaudeSession:
                           for t in tools]
         self.messages: list[dict] = []           # 完整的對話歷史
 
+    # _call：Claude 版內部函式。送出目前的訊息與工具定義，把回應整理成 Turn（文字與工具呼叫請求）
     def _call(self) -> Turn:
         response = self.client.messages.create(
             model=self.model,
@@ -734,10 +746,12 @@ class ClaudeSession:
         calls = [ToolCall(b.id, b.name, dict(b.input)) for b in response.content if b.type == "tool_use"]
         return Turn(text, calls)
 
+    # send_user：Claude 版。把使用者訊息加進對話，呼叫模型並回傳這一輪的回應
     def send_user(self, text):
         self.messages.append({"role": "user", "content": text})
         return self._call()
 
+    # send_results：Claude 版。把這輪所有工具結果放進同一則 user 訊息送回，回傳下一輪回應
     def send_results(self, results):
         # 同一輪的所有 tool_result 要放在同一則 user 訊息裡，並緊接在 tool_use 之後
         # tool_use_id 要和對應的 tool_use 的 id 一致；is_error 標示這個結果是不是錯誤
@@ -748,13 +762,15 @@ class ClaudeSession:
 
 
 class ClaudeLLM:
+    # __init__：建立 Claude 模型包裝，記下模型名稱並建立用戶端
     def __init__(self, model: str = "claude-haiku-5-5", **client_kwargs):
-        import anthropic
+        import anthropic  # anthropic：Anthropic（Claude）官方 SDK
         self.name = model
         self.model = model
         self.client = anthropic.Anthropic(**client_kwargs)
 
     # extract 與 text 和專案 1 一樣
+    # extract：Claude 版。用 parse 取得驗證過的結構化物件
     def extract(self, system, user, schema):
         response = self.client.messages.parse(
             model=self.model, max_tokens=4000, system=system,
@@ -762,6 +778,7 @@ class ClaudeLLM:
         )
         return response.parsed_output
 
+    # text：Claude 版。取得純文字回答
     def text(self, system, user):
         response = self.client.messages.create(
             model=self.model, max_tokens=1500, system=system,
@@ -769,6 +786,7 @@ class ClaudeLLM:
         )
         return "".join(b.text for b in response.content if b.type == "text")
 
+    # session：開一段可呼叫工具的 Claude 對話（回傳 ClaudeSession）
     def session(self, system, tools):
         return ClaudeSession(self.client, self.model, system, tools)
 
@@ -778,6 +796,7 @@ class ClaudeLLM:
 class GeminiSession:
     """Gemini 的對話：歷史由伺服器保存，我們只要帶上一輪的 id。"""
 
+    # __init__：記下用戶端、模型與系統提示，並把 Tool 翻譯成 Gemini 的函式格式
     def __init__(self, client, model: str, system: str, tools: list[Tool]):
         self.client, self.model, self.system = client, model, system
         # 翻譯成 Gemini 的格式：type 為 function，參數說明書叫 parameters
@@ -785,6 +804,7 @@ class GeminiSession:
                            "parameters": t.schema} for t in tools]
         self.previous_id: str | None = None      # Gemini 在伺服器端記住對話，我們只要帶上一輪的 id
 
+    # _call：Gemini 版內部函式。每次都帶上工具與系統提示送出請求，並把回應整理成 Turn
     def _call(self, input_) -> Turn:
         # 官方範例的後續請求每次都會再帶 tools 與 system_instruction，所以這裡也每次都帶
         kwargs = dict(model=self.model, system_instruction=self.system, input=input_, tools=self.tool_defs)
@@ -797,9 +817,11 @@ class GeminiSession:
                  for s in interaction.steps if s.type == "function_call"]
         return Turn(interaction.output_text or "", calls)     # 只要求工具時沒有文字，output_text 可能是 None
 
+    # send_user：Gemini 版。把使用者文字送給模型，回傳這一輪的回應
     def send_user(self, text):
         return self._call(text)
 
+    # send_results：Gemini 版。用 function_result 把每個工具結果送回，回傳下一輪回應
     def send_results(self, results):
         # 每個結果用 function_result 送回；call_id 要用函式呼叫那一步的 id
         return self._call([
@@ -810,12 +832,14 @@ class GeminiSession:
 
 
 class GeminiLLM:
+    # __init__：建立 Gemini 模型包裝，記下模型名稱並建立用戶端
     def __init__(self, model: str = "gemini-3.5-flash-lite", **client_kwargs):
-        from google import genai
+        from google import genai  # genai：Google 的 Gemini SDK
         self.name = model
         self.model = model
         self.client = genai.Client(**client_kwargs)
 
+    # extract：Gemini 版。要求回覆是符合 schema 的 JSON，再驗證成物件
     def extract(self, system, user, schema):
         interaction = self.client.interactions.create(
             model=self.model, system_instruction=system, input=user,
@@ -824,11 +848,13 @@ class GeminiLLM:
         )
         return schema.model_validate_json(interaction.output_text)
 
+    # text：Gemini 版。取得純文字回答
     def text(self, system, user):
         interaction = self.client.interactions.create(
             model=self.model, system_instruction=system, input=user)
         return interaction.output_text
 
+    # session：開一段可呼叫工具的 Gemini 對話（回傳 GeminiSession）
     def session(self, system, tools):
         return GeminiSession(self.client, self.model, system, tools)
 
@@ -873,14 +899,14 @@ def get_llm(provider: str | None = None, model: str | None = None) -> LLM:
       { note: "**白話版：** 現在所有零件都齊了。這一課寫最核心的『迴圈』：問模型、它要工具就執行、把結果還給它，重複到它給出答案。最重要的是『護欄』：模型會亂叫不存在的工具、給錯參數、重複查同一件事、甚至停不下來，工具也會壞。迴圈要把這些意外全部接住，轉成模型聽得懂的話，而不是讓整個程式當掉。" },
       { note: "**為什麼這樣做：** 為什麼護欄比迴圈本身更重要？因為迴圈只有十幾行，誰都寫得出來；真正讓 Agent 能上線的，是出錯時會怎樣。模型每一步都可能犯錯，沒有護欄，一次犯錯就是整個對話失敗，甚至無限迴圈燒錢。**Agent 的工程重點不在『讓它動起來』，而在『讓它出錯時也不出大事』。**" },
       "**步驟一：寫 Agent 迴圈，fishagent/agent.py。**",
-      C(String.raw`import json
-from dataclasses import dataclass, field
-from datetime import date
+      C(String.raw`import json  # json：讀寫 JSON
+from dataclasses import dataclass, field  # dataclass：用裝飾器快速定義資料類別；field：設定 dataclass 欄位的預設值等細節
+from datetime import date  # date：日期型別
 
-from pydantic import ValidationError
+from pydantic import ValidationError  # ValidationError：資料驗證失敗時丟出的例外
 
-from .llm import LLM
-from .tooling import Tool, ToolCall
+from .llm import LLM  # LLM：模型包裝的介面（讓不同供應商可以互換）
+from .tooling import Tool, ToolCall  # Tool：一個工具：名稱、說明、參數格式與執行函式；ToolCall：模型提出的一次工具呼叫請求
 
 MAX_RESULT_CHARS = 4000        # 單一工具結果的長度上限，避免某個工具一次回傳超大內容塞爆上下文
 
@@ -995,24 +1021,27 @@ def run_agent(llm: LLM, tools: list[Tool], question: str, today: date,
       "**步驟二：不花錢測試各種意外。** 用『劇本模型』照事先排好的順序回應，逐一製造意外，看迴圈怎麼反應。",
       C(String.raw`# try_fake.py：不花錢測 Agent 迴圈的各種情況。護欄是防「不常發生、但一發生就很糟」的事，
 # 真實模型很少剛好犯這些錯，所以要用「劇本模型」自己製造意外來驗證
-from datetime import date
+from datetime import date  # date：日期型別
 
-from fishagent.agent import run_agent
-from fishagent.evaluate import check_case
-from fishagent.tooling import ToolCall, Turn
-from fishagent.tools import build_tools
+from fishagent.agent import run_agent  # run_agent：Agent 迴圈：問模型、執行它要的工具、再把結果還給它
+from fishagent.evaluate import check_case  # check_case：檢查一題有沒有通過，回傳未通過的原因
+from fishagent.tooling import ToolCall, Turn  # ToolCall：模型提出的一次工具呼叫請求；Turn：模型的一次回應（文字或工具呼叫請求）
+from fishagent.tools import build_tools  # build_tools：組出這次要給模型的工具清單
 
 
 class ScriptedSession:
     """照劇本一輪一輪回應，同時記下我們送回來的工具結果。"""
 
+    # __init__：記下事先排好的每一輪回應，並準備一個清單記錄收到的工具結果
     def __init__(self, script):
         self.script = list(script)       # 事先排好的每一輪回應
         self.received = []               # 記下 Agent 迴圈送回來的工具結果，之後拿來檢查
 
+    # send_user：測試用。不管收到什麼，直接吐出劇本的下一輪回應
     def send_user(self, text):
         return self.script.pop(0)
 
+    # send_results：測試用。記下收到的工具結果，再吐出劇本的下一輪回應
     def send_results(self, results):
         self.received.append([(c.name, text, err) for c, text, err in results])
         return self.script.pop(0)
@@ -1021,10 +1050,12 @@ class ScriptedSession:
 class ScriptedLLM:
     name = "scripted"
 
+    # __init__：記下劇本，並準備記錄最近一段對話
     def __init__(self, script):
         self.script = script
         self.last = None                 # 記住最近一段對話，方便事後檢查
 
+    # session：測試用。用同一份劇本建立一段假對話並記下它
     def session(self, system, tools):
         self.last = ScriptedSession(self.script)
         return self.last
@@ -1054,7 +1085,7 @@ r = run_agent(llm, tools, "海況？", today)
 print("3 參數錯誤：", llm.last.received[0][0][1])
 
 # 情境四：工具本身出錯（把資料庫路徑改壞）→ 例外被接住，轉成文字交給模型
-import fishagent.tools as T
+import fishagent.tools as T  # fishagent.tools：工具定義模組
 T.SPOTS_DB = "data/不存在.db"
 llm = ScriptedLLM([Turn("", [call(1, "find_spots", keyword="八斗子")]), Turn("查詢暫時失敗。")])
 r = run_agent(llm, tools, "找釣點", today)
@@ -1090,15 +1121,15 @@ print("7 評測判斷：", check_case(case, r))`),
       "這是我實際執行的結果。七種情況都沒有讓程式當掉，每一種意外都變成了一句對模型說的話。第 7 個是預告：第 7 課的評測會用同樣的方式檢查『這次該用的工具有沒有用』。",
       { note: "**為什麼這樣做：** 為什麼要先用假模型測，而不是直接接真的模型試？因為真實模型很少剛好犯『參數型別錯』或『一直重複呼叫』這種你想測的錯，你根本測不到這些護欄。假模型可以隨你的劇本製造任何意外，而且零成本、結果固定。**護欄是用來防『不常發生但一發生就很糟』的事，不用假模型根本沒辦法驗證。**" },
       "**步驟三：寫入口 run_agent.py，並第一次用真的模型。**",
-      C(String.raw`import argparse
-from datetime import date
+      C(String.raw`import argparse  # argparse：解析命令列參數
+from datetime import date  # date：日期型別
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishagent.agent import run_agent
-from fishagent.evaluate import run_eval
-from fishagent.llm import get_llm
-from fishagent.tools import build_tools
+from fishagent.agent import run_agent  # run_agent：Agent 迴圈：問模型、執行它要的工具、再把結果還給它
+from fishagent.evaluate import run_eval  # run_eval：把每一題交給 Agent 跑一遍，印出通過與否與原因
+from fishagent.llm import get_llm  # get_llm：依名稱挑出用哪一家模型並回傳模型物件
+from fishagent.tools import build_tools  # build_tools：組出這次要給模型的工具清單
 
 
 def show_step(step):
@@ -1108,6 +1139,7 @@ def show_step(step):
     print(f"         → {step.result[:120].replace(chr(10), ' ')}")      # chr(10) 是換行，換成空白讓結果擠在一行
 
 
+# main：命令列入口。讀取問題與參數、建立模型與工具，執行 Agent 並印出過程與答案
 def main():
     load_dotenv()
     p = argparse.ArgumentParser(description="釣點顧問 Agent")
@@ -1210,13 +1242,13 @@ python run_agent.py "浮標突然浮起來是什麼訊號？要揚竿嗎？" --p
       ] } },
       { note: "**為什麼這樣做：** 為什麼八題裡有三題是『沒有答案或不該用工具』的負面案例？因為 Agent 最危險的行為不是答不出來，而是為了給出答案去亂用工具、亂編資料。只出『一切順利』的題目，你只會看到它好的一面。**負面案例的比例至少要有三分之一。**" },
       "**步驟二：寫評測程式，fishagent/evaluate.py。**",
-      C(String.raw`import json
-from datetime import date
-from pathlib import Path
+      C(String.raw`import json  # json：讀寫 JSON
+from datetime import date  # date：日期型別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from .agent import run_agent
-from .llm import LLM
-from .tooling import Tool
+from .agent import run_agent  # run_agent：Agent 迴圈：問模型、執行它要的工具、再把結果還給它
+from .llm import LLM  # LLM：模型包裝的介面（讓不同供應商可以互換）
+from .tooling import Tool  # Tool：一個工具：名稱、說明、參數格式與執行函式
 
 
 def check_case(case: dict, result) -> list[str]:

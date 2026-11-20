@@ -95,7 +95,7 @@ index = VectorStoreIndex(nodes)`),
         "**社群 Reader：**很多連接器是獨立套件（官方範例是 DatabaseReader，執行 SQL，每列變成一個 Document）。",
         "**LlamaParse：**託管式的文件解析服務，處理掃描檔與表格；**文件會送到外部服務**，使用前要確認資料政策。官方載入頁只指向獨立說明頁，沒有細述。",
       ] },
-      C(String.raw`from llama_index.core import SimpleDirectoryReader
+      C(String.raw`from llama_index.core import SimpleDirectoryReader  # SimpleDirectoryReader：讀取資料夾內的檔案成文件
 
 # 常用參數的組合：遞迴讀、只讀 PDF 與 Markdown、並自訂 metadata
 def add_meta(file_path: str) -> dict:
@@ -169,7 +169,7 @@ pipeline.persist("./pipeline_storage")      # 存下狀態（含快取），下�
         ["Chat store", "聊天訊息", "聊天記憶用"],
       ] } },
       "文件庫與索引庫建立在共用的鍵值儲存抽象上；持久化支援 fsspec 能處理的任何後端，官方確認有本機檔案系統、AWS S3、Cloudflare R2。",
-      C(String.raw`from llama_index.core import StorageContext
+      C(String.raw`from llama_index.core import StorageContext  # StorageContext：管理索引用到的文件、向量與索引儲存
 from llama_index.core.storage.docstore import SimpleDocumentStore  # SimpleDocumentStore：存放文件內容的簡易儲存
 from llama_index.core.storage.index_store import SimpleIndexStore  # SimpleIndexStore：存放索引資訊的簡易儲存
 from llama_index.core.vector_stores import SimpleVectorStore  # SimpleVectorStore：存放向量的簡易儲存
@@ -182,7 +182,7 @@ storage_context = StorageContext.from_defaults(
 )
 # 換成別的實作（例如外部資料庫的向量庫）時，應用邏輯不用改：這就是『可抽換』的意思`),
       "**存檔與載入（官方 understanding 的 storing 頁）：** 每個索引都有 persist() 方法，把資料寫到目錄；載入時用該目錄重建 StorageContext，再交給 load_index_from_storage，就不用重新載入文件與重新嵌入。**官方的提醒：如果建索引時客製了 transformations 或 embed_model，載入時要提供一樣的設定，或設成全域設定。**",
-      C(String.raw`from llama_index.core import StorageContext, load_index_from_storage
+      C(String.raw`from llama_index.core import StorageContext, load_index_from_storage  # StorageContext：管理索引用到的文件、向量與索引儲存；load_index_from_storage：從儲存的檔案載回索引
 
 # 存檔：把索引的資料寫到目錄（任何索引型態都有 persist）
 index.storage_context.persist(persist_dir="./storage")
@@ -192,7 +192,7 @@ storage_context = StorageContext.from_defaults(persist_dir="./storage")
 index = load_index_from_storage(storage_context)
 # 注意：載入時使用的嵌入模型必須與建索引時相同，否則查詢向量與文件向量對不上`),
       "**用向量資料庫（官方範例是 Chroma）：** 向量放在索引之外的資料庫，重複使用不必重新嵌入。步驟：建立 Chroma 客戶端並指定儲存路徑、取得或建立 collection、用 ChromaVectorStore 包起來並放進 StorageContext、建立索引；之後要接回既有的向量，用 VectorStoreIndex.from_vector_store。",
-      C(String.raw`import chromadb
+      C(String.raw`import chromadb  # chromadb：Chroma 向量資料庫
 from llama_index.core import VectorStoreIndex, StorageContext  # VectorStoreIndex：把文件切塊後建立向量索引；StorageContext：管理索引用到的文件、向量與索引儲存
 from llama_index.vector_stores.chroma import ChromaVectorStore    # 官方範例的匯入；另需安裝對應整合套件
 
@@ -217,7 +217,7 @@ index = VectorStoreIndex.from_vector_store(vector_store, storage_context=storage
         ["callback_manager", "觀察 LlamaIndex 發出的事件（追蹤用）"],
         ["context_window、num_output", "控制查詢時的提示詞空間；通常由 LLM 推斷，可覆寫"],
       ] } },
-      C(String.raw`from llama_index.core import Settings
+      C(String.raw`from llama_index.core import Settings  # Settings：LlamaIndex 的全域設定（預設的 LLM、嵌入模型等）
 from llama_index.llms.anthropic import Anthropic        # 官方範例：pip install llama-index-llms-anthropic
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding  # HuggingFaceEmbedding：使用 Hugging Face 的嵌入模型
 
@@ -294,7 +294,7 @@ filtered_nodes = processor.postprocess_nodes(nodes)
         ["compact_accumulate", "像 accumulate，但像 compact 一樣先打包片段", "同上，較省呼叫"],
       ] } },
       { note: "官方兩頁對預設模式的說法不一致：回應合成器頁寫 compact 是預設；querying 頁的模式列表把 default 描述成『逐節點 refine』。課文如實呈現這個差異，不自行裁決。你要依賴預設行為時，請明確指定 response_mode，並以你安裝的版本為準。" },
-      C(String.raw`from llama_index.core import get_response_synthesizer
+      C(String.raw`from llama_index.core import get_response_synthesizer  # get_response_synthesizer：取得把檢索結果組成回答的合成器
 from llama_index.core.query_engine import RetrieverQueryEngine      # 匯入路徑請以官方文件為準
 from llama_index.core.retrievers import VectorIndexRetriever          # 匯入路徑請以官方文件為準
 

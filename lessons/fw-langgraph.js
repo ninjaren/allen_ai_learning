@@ -82,7 +82,7 @@ graph.invoke({"messages": [{"role": "user", "content": "hi!"}]})`),
         ["Pydantic BaseModel", "需要驗證時使用（驗證本身的概念見 [[fw-01]]）"],
       ] } },
       "**更新規則：預設是覆蓋；要合併就要掛上 reducer。** 節點回傳的是『部分更新』。如果欄位沒有 reducer，新值直接覆蓋舊值；如果用 Annotated 掛上 reducer，新值會依 reducer 的方式合併。這是最容易搞錯的概念，因為『我明明回傳了新訊息，舊訊息怎麼不見了』幾乎都是忘了 reducer。",
-      C(String.raw`import operator
+      C(String.raw`import operator  # operator：把運算子當函式用（例如加法 add）
 from typing import Annotated, TypedDict  # Annotated：替型別附加額外資訊；TypedDict：用字典形式定義有固定欄位的型別
 
 class State(TypedDict):
@@ -94,7 +94,7 @@ class State(TypedDict):
 # 合併後 state = {"foo": 2, "bar": ["a", "b"]}
 #   foo 被覆蓋成 2；bar 因為有 reducer，變成接在一起`),
       "**聊天訊息用專用的 reducer：add_messages。** 官方說明它會附加新訊息，並且**依訊息 ID 更新已存在的訊息**，這是 operator.add 做不到的（operator.add 只會單純接在後面）。官方的 quickstart 範例為了簡單用了 operator.add，但 graph API 頁介紹的是 add_messages；需要『修改既有訊息』（例如工具結果覆寫、人工修改）時要用 add_messages。MessagesState 是現成的、已經帶 add_messages 的狀態型別，可以繼承來加欄位。",
-      C(String.raw`from typing import Annotated
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
 from typing_extensions import TypedDict  # TypedDict：用字典形式定義有固定欄位的型別
 from langchain.messages import AnyMessage          # 匯入路徑請以官方文件為準
 from langgraph.graph.message import add_messages   # 匯入路徑請以官方文件為準
@@ -121,7 +121,7 @@ class State(MessagesState):
         "**條件邊：**由路由函式讀狀態後決定去哪（下一課）。",
         "**官方警告：不要在同一個節點上同時混用靜態邊與動態路由。**",
       ] },
-      C(String.raw`from langgraph.graph import StateGraph, START, END
+      C(String.raw`from langgraph.graph import StateGraph, START, END  # StateGraph：用節點與邊組成的狀態圖；START：LangGraph 圖的起點標記；END：LangGraph 圖的終點標記
 
 class State(TypedDict):
     text: str
@@ -163,7 +163,7 @@ graph.invoke({"text": "start"})        # 結果 text 為 "start -> a -> b"`),
       { note: "**白話版：** 條件邊就是流程圖裡的『判斷菱形』：根據目前狀態決定走哪條路，例如『模型說還需要查資料就去查，否則結束』。迴圈就是箭頭指回前面的步驟。這一課也講怎麼設上限，避免流程無限繞圈。" },
       "**真實的流程有分支與迴圈：分類後走不同路、檢查不合格就退回重做、工作量事先不知道。** LangGraph 用三個工具表達：條件邊、Command、Send。再加上節點層級的重試與全域的遞迴上限。",
       "**一、條件邊：用一個路由函式讀狀態，回傳『下一個節點的名稱』。** 路由函式可以回傳節點名稱、END，或 Send 物件。可以選擇性地給一個字典，把路由函式的輸出對應到節點名稱，讓路由函式回傳的字串可以和節點名稱不同。",
-      C(String.raw`from typing import Literal
+      C(String.raw`from typing import Literal  # Literal：限定只能是某幾個固定值
 from langgraph.graph import StateGraph, START, END  # StateGraph：用節點與邊組成的狀態圖；START：LangGraph 圖的起點標記；END：LangGraph 圖的終點標記
 
 class State(TypedDict):
@@ -215,7 +215,7 @@ def classify_and_route(state: State) -> Command[Literal["handle_billing", "handl
 # 官方提醒：Command(update=...) 單獨使用時，不要拿它來『延續對話』；
 # Command(resume=...) 是用來回覆人工介入的（第 5 課）`),
       "**三、Send：動態扇出（map-reduce）。** 當要平行處理的項目數量**執行時才知道**（例如把文件切成 N 段、對每一段各做一次摘要），路由函式回傳一串 Send(節點名稱, 該項目的輸入)，每個項目各自跑一次同一個節點，輸出再靠 reducer 合併。這正是 orchestrator-worker 模式的實作方式。",
-      C(String.raw`import operator
+      C(String.raw`import operator  # operator：把運算子當函式用（例如加法 add）
 from typing import Annotated  # Annotated：替型別附加額外資訊
 from langgraph.types import Send         # 匯入路徑請以官方文件為準
 
@@ -291,7 +291,7 @@ def should_retry(state: DraftState) -> Literal["generate", "__end__"]:
         "**工具節點（tool_node）：**取出最後一則訊息的 tool_calls，逐一執行工具，把結果包成 ToolMessage 回傳。",
         "**條件邊（should_continue）：**如果最後一則訊息有 tool_calls，就走工具節點；沒有就走 END。工具節點之後固定回到模型節點。",
       ] },
-      C(String.raw`import operator
+      C(String.raw`import operator  # operator：把運算子當函式用（例如加法 add）
 from typing import Annotated, Literal  # Annotated：替型別附加額外資訊；Literal：限定只能是某幾個固定值
 from typing_extensions import TypedDict  # TypedDict：用字典形式定義有固定欄位的型別
 from langchain.messages import AnyMessage, SystemMessage, ToolMessage   # 匯入路徑請以官方文件為準

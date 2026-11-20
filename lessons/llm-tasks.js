@@ -34,17 +34,19 @@ window.LESSON = window.LESSON || {};
       "要點：①有一個「其他」類別接住不屬於任何一類的訊息，否則模型會硬塞進最接近的一類；②用「已收到但有問題屬於退貨換貨」這種規則區分容易混淆的類別；③先寫理由再給類別（官方範例的做法）。",
 
       "**解析輸出，並驗證類別真的在清單裡：**",
-      C(String.raw`import re
-import anthropic
+      C(String.raw`import re  # re：正規表達式
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 LABELS = ["退貨換貨", "物流查詢", "帳號問題", "其他"]
 client = anthropic.Anthropic()
 
+# parse_label：從模型回覆抓出標籤，不在允許清單就當失敗，輸入回覆文字，輸出標籤或 None
 def parse_label(text):
     m = re.search(r"<intent>(.*?)</intent>", text, re.DOTALL)
     label = m.group(1).strip() if m else None
     return label if label in LABELS else None     # 不在清單裡就當作失敗
 
+# classify：呼叫模型把訊息分類，輸入訊息文字，輸出標籤（解析失敗就回其他）
 def classify(message_text):
     reply = client.messages.create(
         model="claude-haiku-5-5",
@@ -60,8 +62,8 @@ print(parse_label("<intent>退款</intent>"))                                   
 print(parse_label("我覺得是退貨"))                                                 # None（沒有標籤）`),
 
       "**更穩的做法：用結構化輸出，直接限制只能是這幾個類別。** 用 `Literal`，模型就只能輸出清單裡的值（官方結構化輸出支援 `enum`）：",
-      C(String.raw`from typing import Literal
-from pydantic import BaseModel
+      C(String.raw`from typing import Literal  # Literal：限定只能是某幾個固定值
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class Ticket(BaseModel):
     reason: str                                   # 先寫理由
@@ -106,9 +108,9 @@ print(response.parsed_output.label)               # 物流查詢`),
       "**資訊抽取**是把非結構化文字（郵件、客服訊息、合約、收據）轉成**結構化資料**（欄位與值），讓程式能繼續處理，例如寫進資料庫、觸發流程。",
 
       "**核心原則：先定義 schema，再抽取。** 用 Pydantic 描述你要的欄位，配合結構化輸出（見階段 5），格式就會是對的：",
-      C(String.raw`from typing import Optional
-from pydantic import BaseModel, Field
-import anthropic
+      C(String.raw`from typing import Optional  # Optional：標註『可以是某型別或 None』
+from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 class Order(BaseModel):
     order_id: Optional[str] = Field(default=None, description="訂單編號，例如 A12345。文字中沒有就填 null")
@@ -152,6 +154,7 @@ system = "今天是 2026-11-08（星期日）。抽取會議資訊。"`),
     value: Optional[str]
     evidence: Optional[str] = Field(description="原文中支持這個值的片段，必須逐字複製；沒有就填 null")
 
+# evidence_ok：檢查抽出的欄位有沒有在原文找到佐證，輸入原文與欄位，輸出 True 或 False（值為空視為通過）
 def evidence_ok(source, field):
     if field.value is None:
         return True
@@ -182,7 +185,7 @@ print(evidence_ok("訂單 A123", Extracted(value="B999", evidence="B999")))     
       "**摘要**是把長文濃縮成重點。看起來簡單，但「好摘要」的標準因用途而異：給主管看的三行結論、給律師的條款重點、給客服的來電紀錄，寫法完全不同。所以第一步是**說清楚摘要要給誰、做什麼用、要包含什麼**。",
 
       "**官方 Legal summarization 指南的做法：先決定要抽取哪些細節，再要求模型依這些項目輸出。** 以合約為例：當事人、日期、金額、終止條件。把它變成提示詞的結構：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()
 
@@ -229,6 +232,7 @@ print(summarize(contract_text, ["當事人", "金額", "終止條件"]))`),
 print([len(c) for c in chunk_text("a" * 45, 20)])               # [20, 20, 5]
 print([len(c) for c in chunk_text("a" * 45, 20, overlap=5)])    # [20, 20, 15]
 
+# summarize_long：長文先分段各自摘要，再請模型合併成一份並標出矛盾，輸入全文與細節要求，輸出摘要
 def summarize_long(text, details):
     chunk_summaries = [summarize(chunk, details) for chunk in chunk_text(text)]
     combined = "\n\n".join(chunk_summaries)
@@ -246,7 +250,7 @@ def summarize_long(text, details):
       "切段最好依**自然邊界**（章節、段落）而不是固定字數，才不會把一個句子或一個條款切成兩半。上面是最簡單的版本，要用在正式資料時請改成依段落切。",
 
       "**大量文件：平行呼叫。** 官方指南提醒，長文件要產生摘要可能需要將近一分鐘，大量文件時可以平行送出請求，但要遵守 rate limit。最簡單的寫法是 `ThreadPoolExecutor`：",
-      C(String.raw`from concurrent.futures import ThreadPoolExecutor
+      C(String.raw`from concurrent.futures import ThreadPoolExecutor  # ThreadPoolExecutor：用執行緒池並行執行函式
 
 docs = ["文件一的內容……", "文件二的內容……", "文件三的內容……"]
 
@@ -290,7 +294,7 @@ with ThreadPoolExecutor(max_workers=4) as pool:        # 同時最多 4 個，�
         "**只輸出譯文**，不要加『以下是翻譯』",
       ] },
 
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()
 
@@ -303,6 +307,7 @@ SYSTEM = """你是專業的軟體在地化譯者。把 <source> 內的文字翻�
 4. 語氣：親切但專業，適合 App 介面
 5. 只輸出譯文，不要加任何說明"""
 
+# translate：用系統提示的翻譯規則呼叫模型，輸入原文，輸出譯文
 def translate(text):
     reply = client.messages.create(
         model="claude-haiku-5-5", max_tokens=2000, system=SYSTEM,
@@ -317,6 +322,7 @@ def translate(text):
     "評測": "eval",
 }
 
+# glossary_block：把術語表組成提示詞裡的 glossary 區塊，輸入字典，輸出文字區塊
 def glossary_block(glossary):
     lines = "\n".join(f"- {src} → {dst}" for src, dst in glossary.items())
     return f"<glossary>\n以下術語一律照此翻譯：\n{lines}\n</glossary>"
@@ -324,8 +330,9 @@ def glossary_block(glossary):
 print(glossary_block(GLOSSARY))`),
 
       "**用程式驗證翻譯有沒有弄壞東西。** 翻譯最常出的事故是佔位符被改掉或被翻譯。這個檢查很便宜，可以每筆都做：",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
+# placeholders：找出字串裡的佔位符（如 {name}、%d、標籤），輸入字串，輸出排序後的清單，用來比對譯文有沒有漏
 def placeholders(s):
     return sorted(re.findall(r"\{[a-z_]+\}|%[sd]|<[a-z]+>", s))
 
@@ -338,7 +345,7 @@ print(placeholders(src) == placeholders(bad))    # False：要重新翻譯或轉
 print(placeholders(src))                          # ['%d', '<b>', '{name}']`),
 
       "**大量字串（例如整個語系檔）：** 用結構化輸出一次翻譯多筆，用 id 對應，避免順序錯亂：",
-      C(String.raw`from pydantic import BaseModel
+      C(String.raw`from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class Item(BaseModel):
     id: str
@@ -386,7 +393,7 @@ assert set(result) == set(strings)`),
         "**限制**：字數、不要加入新資訊、不要加客套話",
         "**範例**：給一組『改寫前 → 改寫後』能最有效說明你要的風格（見 Few-shot）",
       ] },
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()
 
@@ -400,6 +407,7 @@ SYSTEM = """你是文字編輯。把 <text> 的內容改寫成適合寄給客戶
 3. 長度與原文差不多，不超過原文的 1.3 倍
 只輸出改寫後的文字。"""
 
+# rewrite：呼叫模型改寫文字，輸入原文，輸出改寫後的文字
 def rewrite(text):
     reply = client.messages.create(
         model="claude-haiku-5-5", max_tokens=1500, system=SYSTEM,
@@ -408,8 +416,9 @@ def rewrite(text):
     return "".join(b.text for b in reply.content if b.type == "text").strip()`),
 
       "**不能變的東西，用程式檢查。** 改寫最危險的是悄悄改了數字或日期。這個檢查不花 API 費用：",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
+# numbers：抽出字串裡的所有數字（先去掉千分位逗號），輸入字串，輸出排序後的清單，用來檢查改寫沒動到數字
 def numbers(s):
     s = s.replace(",", "")                        # 先去掉千分位逗號，否則 1,200 會被當成 1 和 200
     return sorted(re.findall(r"\d+(?:\.\d+)?", s))
@@ -422,7 +431,7 @@ print(numbers(before) == numbers(after))     # True：數字沒有被改動`),
       "數字相同代表至少沒有改到數字，但**不代表意思沒變**（例如『前』改成『後』）。重要的改寫仍然要人工看，或用 LLM 評分檢查『是否改變原意』。",
 
       "**看改了哪裡：用 `difflib`。** Python 標準函式庫就能比較前後差異：",
-      C(String.raw`import difflib
+      C(String.raw`import difflib  # difflib：比對兩段文字的差異
 
 before = "今天天氣很好"
 after  = "今日天氣晴朗"

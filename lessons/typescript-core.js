@@ -369,6 +369,7 @@ console.log("2.5 同步結束");
       "**二、Promise 與 async / await：**",
       C(String.raw`const sleep = (ms, v) => new Promise(r => setTimeout(() => r(v), ms));
 
+// f：示範用，一定會丟出錯誤的 async 函式，用來看 catch 與 try/catch 怎麼接
 async function f() { throw new Error("boom"); }
 f().catch(e => console.log("catch:", e.message));            // catch: boom
 try { await f(); } catch (e) { console.log("try/catch:", e.message); }   // try/catch: boom
@@ -498,8 +499,10 @@ const count = document.querySelector("#count");
 
 let todos = [];
 try { todos = JSON.parse(localStorage.getItem("todos") ?? "[]"); } catch { todos = []; }   // 讀取失敗就當作空的
+// save：把待辦清單存進 localStorage，存不下（例如被禁用）就忽略，輸入無，輸出無
 function save() { try { localStorage.setItem("todos", JSON.stringify(todos)); } catch {} }
 
+// render：依 todos 重畫整份清單（用 textContent，不用 innerHTML），並更新未完成數量，輸入無，輸出無
 function render() {
   list.replaceChildren();                                 // 清空
   for (const t of todos) {
@@ -714,6 +717,7 @@ type KeysOfUser = keyof User;             // "id" | "name" | "email" | "role"
 const k: KeysOfUser = "email";
 const k2: KeysOfUser = "nope";            // TS2322: Type '"nope"' is not assignable to type 'keyof User'.
 
+// fn：示範用，輸入數字，輸出 { ok, n } 物件，用來讓 ReturnType 與 Parameters 推出型別
 function fn(a: number) { return { ok: true, n: a }; }
 type Ret = ReturnType<typeof fn>;         // { ok: boolean; n: number }   從函式推出回傳型別
 type Prm = Parameters<typeof fn>;         // [a: number]
@@ -753,25 +757,30 @@ const v = scores["zzz"];            // 型別是 number | undefined（開了 noU
       "**泛型（generics）讓你寫出『適用多種型別，但保持型別關聯』的程式。** 與其用 `any`（放棄檢查），不如用型別參數 `T` 當作占位符：呼叫時才決定它是什麼，而且輸入與輸出的型別會連動。你每天都在用泛型：`Array<number>`、`Promise<string>`、`Map<string, number>`。以下錯誤訊息是 `tsc 7.0.2` 的實際輸出。",
 
       "**一、最基本的泛型函式：**",
-      C(String.raw`function identity<T>(x: T): T { return x; }
+      C(String.raw`// identity：最簡單的泛型函式，輸入什麼型別就回傳同型別
+function identity<T>(x: T): T { return x; }
 const a1 = identity("s");          // T 推論為 string
 const a2 = identity<number>(5);    // 也可以明確指定
 
+// first：輸入陣列，輸出第一個元素（空陣列為 undefined）
 function first<T>(xs: T[]): T | undefined { return xs[0]; }
 const f1 = first([1, 2]);          // number | undefined
 const f3: number = first(["a"]);   // TS2322: Type 'string | undefined' is not assignable to type 'number'.`),
       "重點：**型別參數把輸入和輸出連起來**——傳字串陣列進去，回傳就是字串（或 undefined），不是 `any`。大多數時候不用手動指定 `T`，讓編譯器從引數推論。",
 
       "**二、型別限制（constraints）：`extends`。** 泛型預設什麼都不知道，所以不能對 `T` 做任何操作；用 `extends` 告訴編譯器『`T` 至少要有這些東西』：",
-      C(String.raw`function bad<T>(x: T) { return x.toUpperCase(); }
+      C(String.raw`// bad：錯誤示範，T 沒有限制，所以不能呼叫 toUpperCase
+function bad<T>(x: T) { return x.toUpperCase(); }
 // TS2339: Property 'toUpperCase' does not exist on type 'T'.
 
+// longest：輸入兩個有 length 的值，輸出較長的那個；T 被限制為必須有 length
 function longest<T extends { length: number }>(a: T, b: T): T { return a.length >= b.length ? a : b; }
 longest("ab", "abc"); longest([1], [1, 2]);     // 字串和陣列都有 length，可以
 longest(1, 2);   // TS2345: Argument of type 'number' is not assignable to parameter of type '{ length: number; }'.`),
 
       "**三、`keyof` 與型別參數搭配：型別安全的取值函式。**",
-      C(String.raw`function pluck<T, K extends keyof T>(o: T, k: K): T[K] { return o[k]; }
+      C(String.raw`// pluck：輸入物件與它的屬性名，輸出該屬性的值，型別跟著屬性走
+function pluck<T, K extends keyof T>(o: T, k: K): T[K] { return o[k]; }
 const pl = pluck({ id: 1, name: "n" }, "name");        // 型別是 string（精確）
 const pl2 = pluck({ id: 1 }, "nope");
 // TS2345: Argument of type '"nope"' is not assignable to parameter of type '"id"'.`),
@@ -779,6 +788,7 @@ const pl2 = pluck({ id: 1 }, "nope");
 
       "**四、泛型介面與型別：**",
       C(String.raw`interface Box<T> { value: T; map<U>(fn: (v: T) => U): Box<U> }
+// box：把值包進 Box，map 可以轉換內容並回傳新的 Box，輸入值，輸出 Box
 function box<T>(value: T): Box<T> { return { value, map: fn => box(fn(value)) }; }
 const bx = box(2).map(n => String(n)).map(s => s.length);    // Box<number>
 const bxv: string = bx.value;                                 // TS2322: Type 'number' is not assignable to type 'string'.
@@ -790,11 +800,13 @@ m.set(1, [2]);        // TS2345: Argument of type 'number' is not assignable to 
       "**五、實用範例：統一的 API 結果型別。** 用泛型加聯集，描述『成功帶資料、失敗帶錯誤』，呼叫端被迫處理兩種情況：",
       C(String.raw`type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
+// handle：處理 ApiResult，成功就回資料，失敗就丟出錯誤，輸入 ApiResult，輸出資料
 function handle<T>(r: ApiResult<T>): T {
   if (r.ok) return r.data;           // 在這個分支，編譯器知道 r 是成功的那種
   throw new Error(r.error);
 }
 
+// load：抓 URL 並解析 JSON，輸入網址，輸出聲稱是 T 的資料（as T 沒有執行期檢查）
 async function load<T>(url: string): Promise<T> {
   const r = await fetch(url);
   return (await r.json()) as T;      // 注意：這個 as T 是「我保證」，沒有任何執行期檢查
@@ -829,22 +841,26 @@ async function load<T>(url: string): Promise<T> {
       "**聯集型別（union，`A | B`）說『這個值可能是 A 或 B』。** 使用它之前，要先**縮小（narrowing）**成其中一種，編譯器才知道能做什麼。TypeScript 會依據你寫的檢查（`typeof`、`in`、`===`…）自動縮小型別。這是日常寫 TypeScript 最重要的技巧之一。以下錯誤訊息是 `tsc 7.0.2` 的實際輸出。",
 
       "**一、基本縮小方式：**",
-      C(String.raw`function len(x: string | string[]) {
+      C(String.raw`// len：用 typeof 縮小型別，字串與字串陣列都取長度，輸入字串或字串陣列，輸出長度
+function len(x: string | string[]) {
   if (typeof x === "string") return x.length;      // 這裡 x 是 string
   return x.length;                                  // 這裡 x 是 string[]
 }
 
+// up：錯誤示範，真值檢查無法排除空字串，輸入字串或 null，輸出大寫字串
 function up(x: string | null) {
   if (x) return x.toUpperCase();                    // 真值檢查：排除 null（和空字串）
   return x.toUpperCase();
   // TS18047: 'x' is possibly 'null'.     ← x 在這裡是 "" 或 null，仍然可能是 null
 }
 
+// inOp：用 in 檢查屬性是否存在來區分兩種物件，輸入聯集型別的物件，輸出數字字串或大寫字串
 function inOp(x: { a: number } | { b: string }) {
   if ("a" in x) return x.a.toFixed();               // in：用屬性是否存在來區分
   return x.b.toUpperCase();
 }
 
+// inst：用 instanceof 區分 Date 與字串，輸入 Date 或字串，輸出時間戳或長度
 function inst(e: Date | string) {
   if (e instanceof Date) return e.getTime();        // instanceof：用類別區分
   return e.length;
@@ -864,6 +880,7 @@ function inst(e: Date | string) {
   | { kind: "rect"; w: number; h: number }
   | { kind: "tri"; b: number; h: number };
 
+// area：依 kind 算面積，default 用 never 檢查有沒有漏掉的變體，輸入 Shape，輸出面積
 function area(s: Shape): number {
   switch (s.kind) {
     case "circle": return Math.PI * s.r ** 2;
@@ -876,8 +893,10 @@ function area(s: Shape): number {
       "這個『漏處理就編譯失敗』的特性非常適合：事件類型、API 回應狀態、訊息角色（`user`/`assistant`）、LLM 串流事件、狀態機。**新增變體時，所有該處理的地方都會被標出來。**",
 
       "**三、自訂的型別守衛（type predicate）：** 把檢查邏輯包成函式，並告訴編譯器『回傳 true 代表是這個型別』：",
-      C(String.raw`function isStr(x: unknown): x is string { return typeof x === "string"; }
+      C(String.raw`// isStr：自訂型別守衛，回傳 true 時編譯器就把 x 當 string，輸入未知值，輸出 boolean
+function isStr(x: unknown): x is string { return typeof x === "string"; }
 
+// useUnknown：對 unknown 必須先縮小型別才能用，輸入未知值，輸出大寫字串或長度
 function useUnknown(x: unknown) {
   if (isStr(x)) return x.toUpperCase();     // 這裡 x 是 string
   if (Array.isArray(x)) return x.length;    // 這裡 x 是 any[]

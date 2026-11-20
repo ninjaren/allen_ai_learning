@@ -52,9 +52,9 @@ window.LESSON = window.LESSON || {};
       ] },
 
       "**二、實際跑一遍（我在自己的電腦上跑過）。** 安裝：`pip install torch transformers peft`。下面用 135M 參數的小模型 `HuggingFaceTB/SmolLM2-135M`，只為驗證完整流程（在 CPU 上跑得很慢，也不是實用的微調）。資料是 4 筆固定格式的問答（四個首都問題），訓練目標是讓模型在 `A: ` 後面回答固定的字串（例如 `PARIS-OK`），這樣就能一眼看出它有沒有學到：",
-      C(String.raw`import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import LoraConfig, get_peft_model
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
+from transformers import AutoModelForCausalLM, AutoTokenizer  # AutoModelForCausalLM：依名稱自動載入文字生成模型；AutoTokenizer：依模型名稱自動載入對應的 tokenizer
+from peft import LoraConfig, get_peft_model  # LoraConfig：設定 LoRA 微調的參數；get_peft_model：替模型套上 PEFT（如 LoRA）轉接層
 
 name = "HuggingFaceTB/SmolLM2-135M"
 tok = AutoTokenizer.from_pretrained(name)
@@ -68,7 +68,8 @@ model.print_trainable_parameters()
 # trainable params: 460,800 || all params: 134,975,808 || trainable%: 0.3414
 # 基底模型 134,515,008 個參數全部凍結；只訓練 LoRA 的 460,800 個（0.34%）`),
       "**資料處理的重點：只對『答案』部分算損失。** 提示（問題）部分不是你要模型『學著說』的內容，所以把它的標籤設成 `-100`（PyTorch 的 `ignore_index`），損失函數就會略過它：",
-      C(String.raw`def enc(q, a):
+      C(String.raw`# enc：把一題與答案編成提示與答案兩段 token（答案後加結束符），輸入問題與答案，輸出（提示 token，答案 token）
+def enc(q, a):
     p = tok(f"Q: What is the capital of {q}?\nA: ")["input_ids"]
     t = tok(a + tok.eos_token)["input_ids"]               # 答案後面加結束符號，模型才學會何時停
     return p, t                                           # 提示的 token、答案的 token
@@ -87,7 +88,8 @@ for epoch in range(6):
         out.loss.backward(); opt.step(); opt.zero_grad(); tot += out.loss.item()
     print("epoch", epoch, "平均 loss", round(tot / 4, 3))`),
       "**訓練與評估的結果（這是我實際跑出的，用 6 輪、學習率 1e-3、訓練順序每輪隨機打亂，CPU 上約三分鐘）。** 訓練前先看基底模型本來怎麼回答，訓練後在同一個流程評估，存檔、重新載入、合併之後再各評一次。評估時對每個訓練問題算『教師強制（teacher-forced）損失』並貪婪生成，再問一個沒教過的問題（Germany）：",
-      C(String.raw`def evaluate(m, label):
+      C(String.raw`# evaluate：逐題計算答案的損失並用貪婪解碼生成，印出結果，輸入模型與標籤，輸出無
+def evaluate(m, label):
     m.eval()
     for (q, a), (p, t) in zip(pairs, data):
         ids = torch.tensor([p + t]); labels = torch.tensor([[-100] * len(p) + t])
@@ -147,8 +149,9 @@ merged.save_pretrained("merged_model")                # 之後可以轉成其他
         "**隱私與授權：** 訓練資料可能被模型記住並吐出來，所以不要放個資與機密（見安全階段）。",
       ] },
       "切分與去重的最小寫法：",
-      C(String.raw`import json, random, hashlib
+      C(String.raw`import json, random, hashlib  # json：讀寫 JSON；random：亂數；hashlib：計算雜湊（例如 SHA256）
 
+# load：讀 JSONL 檔，一行一筆，輸入路徑，輸出字典清單
 def load(path):
     return [json.loads(l) for l in open(path, encoding="utf-8")]
 
@@ -214,8 +217,9 @@ print(len(rows), len(uniq), len(train), len(val), len(test))`),
         "`kd`——用上述混合損失（T=3、alpha=0.7）。",
         "`kd_unlabeled`——不用原始標籤，只用老師標註的 3000 筆額外未標註資料。",
       ] },
-      C(String.raw`import torch, torch.nn.functional as F
+      C(String.raw`import torch, torch.nn.functional as F  # torch：PyTorch：張量運算與神經網路；torch.nn.functional：PyTorch 的函式式運算（如 softmax）
 
+# kd_loss：知識蒸餾損失，軟標籤（學生對老師的 KL）與硬標籤交叉熵加權，輸入學生、資料、標籤、老師、溫度與權重，輸出損失
 def kd_loss(student, X, y, teacher, T=3.0, alpha=0.7):
     with torch.no_grad():
         t_logits = teacher(X)                                   # 老師的 logits，不更新
@@ -299,7 +303,7 @@ ollama run qwen3:8b              # 互動式聊天（輸入 /bye 離開）
 ollama ps                        # 目前載入記憶體的模型、用了多少顯示記憶體
 ollama rm 模型名稱                # 刪除模型`),
       "Ollama 安裝後會在背景執行，並在 `http://localhost:11434` 提供 REST API。用 Python 的 `httpx` 呼叫（實際跑過）：",
-      C(String.raw`import httpx
+      C(String.raw`import httpx  # httpx：HTTP 用戶端（支援同步與非同步）
 B = "http://localhost:11434"
 c = httpx.Client(timeout=300)
 
@@ -329,9 +333,10 @@ r = c.post(B + "/api/chat", json={"model": "qwen3:8b", "stream": False, "think":
 print(r["message"]["content"])        # { "city": "東京", "country": "日本" }`),
 
       "**OpenAI 相容端點：** Ollama 在 `/v1` 提供與 OpenAI SDK 相容的介面，所以你原本用 OpenAI SDK 寫的程式，改 `base_url` 就能接本地模型（Claude 的 SDK 則是另一套，要改用 OpenAI 格式的客戶端來呼叫它）：",
-      C(String.raw`from openai import OpenAI
+      C(String.raw`from openai import OpenAI  # OpenAI：OpenAI 的用戶端
 oc = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")      # api_key 隨便填，Ollama 不檢查
 
+# ask：用不同的 max_tokens 呼叫 qwen3，輸入額外參數，輸出（內容，結束原因，用掉的 token 數）
 def ask(**kw):
     o = oc.chat.completions.create(model="qwen3:8b", temperature=0,
                                    messages=[{"role": "user", "content": "只回答數字：2+3"}], **kw)
@@ -415,7 +420,7 @@ SYSTEM """你是簡潔的繁體中文客服助理。"""
         "**成本：** 官方說明 Claude 把圖像切成 28×28 像素的方塊，每個方塊是一個『視覺 token』，一張圖的成本是 ⌈寬/28⌉ × ⌈高/28⌉ 個視覺 token。例如 448×224 的圖是 16 × 8 = 128 個 token。太大的圖會先被縮小：Claude 4.7 以後的模型長邊上限 2,576 像素（最多 4,784 個視覺 token），其他模型是 1,568 像素（最多 1,568 個視覺 token）。**所以上傳比需要大很多的圖只是浪費時間和傳輸，先自己縮小**。",
         "**多張圖：** 可以放在同一個請求，用文字標示『圖 1』、『圖 2』，讓模型比較。",
       ] },
-      C(String.raw`import base64, anthropic
+      C(String.raw`import base64, anthropic  # base64：base64 編碼與解碼；anthropic：Anthropic（Claude）官方 SDK
 client = anthropic.Anthropic()
 
 with open("chart.png", "rb") as f:
@@ -433,8 +438,8 @@ print(msg.content[0].text)
       "**實用技巧：** 圖在前、問題在後；問題要具體（『表格第三列的金額是多少』比『這是什麼』好）；對文件類內容，要求逐項抽取並用結構化輸出（見 LLM 任務階段）；表格或小字很多時，裁切成局部、放大再送，比整張縮小的效果好；重要的數字請模型引用位置，再人工核對。",
 
       "**二、本地的多模態模型（我實際跑過 llava）。** Ollama 可以跑視覺語言模型。我用 Python 的 PIL 畫了一張 448×224 的圖（左邊紅色長方形，右邊藍色圓形），丟給本機的 `llava:7b`：",
-      C(String.raw`import base64, io, httpx
-from PIL import Image, ImageDraw
+      C(String.raw`import base64, io, httpx  # base64：base64 編碼與解碼；io：記憶體中的檔案物件（如 BytesIO）；httpx：HTTP 用戶端（支援同步與非同步）
+from PIL import Image, ImageDraw  # Image：開啟與處理圖片（Pillow）；ImageDraw：在圖片上畫圖形與文字
 
 img = Image.new("RGB", (448, 224), "white")
 d = ImageDraw.Draw(img)
@@ -524,8 +529,8 @@ ffmpeg -i t.mp4 -vf "fps=1/2,scale=320:-1" f_%02d.jpg
       ] },
       "我用 `faster-whisper` 的 **tiny** 模型（最小的）實際辨識兩個音檔，音檔是用 Windows 內建的語音合成（`System.Speech`，有 `Microsoft Hanhan Desktop`（zh-TW）與 `Microsoft Zira Desktop`（en-US）等聲音）產生的，一個中文一個英文：",
       C(String.raw`# pip install faster-whisper
-import subprocess, numpy as np
-from faster_whisper import WhisperModel
+import subprocess, numpy as np  # subprocess：執行外部程式；numpy：陣列與數值運算
+from faster_whisper import WhisperModel  # WhisperModel：載入 faster-whisper 語音辨識模型
 
 def load(path):                                    # 用 ffmpeg 把任何音檔轉成 16kHz 單聲道的浮點陣列
     raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-f", "f32le", "-ac", "1", "-ar", "16000", "-"],
@@ -572,10 +577,12 @@ $s.Speak("今天天氣很好，我想訂明天下午三點的會議室。")
 $s.Dispose()`),
 
       "**三、把三段串起來（我在本機實際跑過）：** STT 用 faster-whisper（tiny）、LLM 用本機的 Ollama `qwen3:8b`（系統提示要求口語、一到兩句、不要符號）、TTS 用 Windows 內建的 Hanhan 聲音。輸入是前面的中文音檔，各段先暖機（載入模型）再計時：",
-      C(String.raw`def stt(path):
+      C(String.raw`# stt：語音轉文字，輸入音檔路徑，輸出辨識出的文字
+def stt(path):
     segs, info = stt_model.transcribe(load(path), beam_size=1, language="zh")
     return "".join(s.text for s in segs)
 
+# llm：把一句話送給本機 Ollama 的模型，輸入文字，輸出口語的簡短回答
 def llm(text):
     r = httpx.post("http://localhost:11434/api/chat", timeout=300, json={
         "model": "qwen3:8b", "stream": False, "think": False,
@@ -670,9 +677,10 @@ text = stt("zh.wav"); answer = llm(text); tts(answer, "reply.wav")
       "**我沒有逐一評測這些來源的品質**，請自己試用後留下適合的。重點是**挑少數、固定看**。",
 
       "**用程式查論文（我實際跑過 arXiv 官方 API）：** arXiv 提供免費的查詢 API，回傳 Atom（XML）格式。下面查本站教學引用的三篇經典論文，並抓某個主題最新的幾篇：",
-      C(String.raw`import httpx, xml.etree.ElementTree as ET
+      C(String.raw`import httpx, xml.etree.ElementTree as ET  # httpx：HTTP 用戶端（支援同步與非同步）；xml.etree.ElementTree：解析 XML
 NS = {"a": "http://www.w3.org/2005/Atom"}
 
+# fetch：查詢 arXiv API 並解析 XML，輸入查詢參數，輸出論文清單（編號、標題、日期、前 3 位作者、PDF 連結）
 def fetch(params):
     r = httpx.get("https://export.arxiv.org/api/query", params=params, timeout=30, follow_redirects=True)
     r.raise_for_status()

@@ -73,8 +73,8 @@ node --test                            # 內建測試執行器（找 *.test.ts�
       "實測 `--env-file`：`.env` 裡的 `API_KEY=from-env-file`、`PORT=3000` 在程式裡的 `process.env` 讀得到；注意 `node --run` 啟動的腳本**不會**繼承你給 `node` 的 `--env-file`（實測印出 undefined），要寫在腳本指令裡。內建測試（`node:test` 加 `node:assert/strict`）也能直接測 `.ts`，實測輸出：",
       C(String.raw`// add.test.ts
 import { test } from "node:test";
-import assert from "node:assert/strict";
-import { add } from "./add.ts";
+import assert from "node:assert/strict";  // assert：Node 內建的斷言（嚴格模式），不符就丟錯
+import { add } from "./add.ts";  // add：要被測試的加法函式
 test("add", () => { assert.equal(add(1, 2), 3); });
 test("add 負數", () => { assert.equal(add(-1, 1), 0); });
 test("會失敗的", () => { assert.equal(add(1, 1), 3); });
@@ -223,6 +223,7 @@ export default defineConfig({
   }
 }
 
+// callApi：呼叫 API，加逾時，把逾時、網路錯誤與非 2xx 回應都轉成 ApiError，輸入路徑、選項與逾時毫秒，輸出回應
 async function callApi(path: string, init: RequestInit = {}, timeoutMs = 10_000) {
   let res: Response;
   try {
@@ -257,6 +258,7 @@ async function callApi(path: string, init: RequestInit = {}, timeoutMs = 10_000)
       C(String.raw`const retriable = (e: unknown) =>
   e instanceof ApiError && (e.status === 429 || e.status >= 500 || e.kind === "timeout" || e.kind === "network");
 
+// withRetry：對可重試的錯誤做指數退避加隨機等待（優先尊重 retry-after），輸入非同步函式與次數設定，輸出結果與嘗試次數
 async function withRetry<T>(fn: () => Promise<T>, { max = 4, baseMs = 50 } = {}) {
   for (let attempt = 1; ; attempt++) {
     try { return { value: await fn(), attempt }; }
@@ -292,7 +294,7 @@ async function withRetry<T>(fn: () => Promise<T>, { max = 4, baseMs = 50 } = {})
 // 沒有真的送出（沒有使用金鑰）；結構依官方 API 文件與 SDK 實際送出的請求`),
 
       "**五、用官方 SDK（`@anthropic-ai/sdk` 1.6.0）：** 它幫你處理標頭、重試、逾時、錯誤分類、型別、串流。我用 `fetch` 選項注入一個假的 `fetch`，實際驗證了行為（沒有真的呼叫 API）：",
-      C(String.raw`import Anthropic from "@anthropic-ai/sdk";
+      C(String.raw`import Anthropic from "@anthropic-ai/sdk";  // Anthropic：Anthropic（Claude）官方 SDK
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });   // 也可省略，預設讀同名環境變數
 // 測試時：new Anthropic({ apiKey: "sk-test", fetch: fakeFetch, maxRetries: 0 })   注入假的 fetch
@@ -351,7 +353,7 @@ data: {"text":"每"}
 `),
 
       "**二、Node 伺服器送出 SSE（實測）：** 重點是標頭、`Last-Event-ID`、客戶端離開時要清理：",
-      C(String.raw`import { createServer } from "node:http";
+      C(String.raw`import { createServer } from "node:http";  // createServer：建立 HTTP 伺服器
 
 const words = ["串", "流", "的", "每", "個", "字", "都", "是", "一", "個", "事", "件"];
 const server = createServer((req, res) => {
@@ -472,7 +474,7 @@ for await (const e of s2) console.log(e.type);
       "**TypeScript 的型別在執行前就被去掉了，** 所以它管不到『執行時從外面進來的資料』：LLM 的輸出、`fetch` 的回應、使用者輸入、`JSON.parse` 的結果。這些資料的實際形狀要靠**執行期驗證**。**Zod** 是 TypeScript 生態最常用的驗證函式庫（我實測 4.6.7）：你寫一份 schema，它同時給你**執行期驗證**和**靜態型別**，兩者永遠同步。對 LLM 應用特別重要，因為模型輸出本質上不可靠（結構化輸出的概念見 LLM 任務階段）。",
 
       "**一、定義 schema 與取得型別：**",
-      C(String.raw`import { z } from "zod";
+      C(String.raw`import { z } from "zod";  // z：zod，宣告資料結構並驗證
 
 const Refund = z.object({
   order_id: z.string().regex(/^ORD-\d{6}$/, "訂單編號格式應為 ORD-123456"),
@@ -509,6 +511,7 @@ const Action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("reply"), text: z.string(), urgent: z.boolean().default(false) }),
 ]);
 type Action = z.infer<typeof Action>;
+// run：用 switch 依 type 處理不同動作，輸入 Action，輸出對應內容
 function run(a: Action) { switch (a.type) { case "search": return a.query; case "reply": return a.text + (a.urgent ? "!" : ""); } }
 console.log(run(Action.parse({ type: "reply", text: "好" })), Action.safeParse({ type: "delete" }).success);   // 好 false
 
@@ -541,7 +544,7 @@ console.log(S.safeParse({ b: null }).success, S.safeParse({}).success);         
       "`.describe(...)` 的文字會進到 JSON Schema 的 `description`，**模型會讀它**，寫清楚等於在給模型指示。",
 
       "**五、官方 SDK 的 Zod 整合（實測，用假的 API 回應）：** `@anthropic-ai/sdk` 提供 `zodOutputFormat`，把 Zod schema 轉成請求的結構化輸出格式，用 `messages.parse` 就直接拿到驗證過的資料：",
-      C(String.raw`import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+      C(String.raw`import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";  // zodOutputFormat：把 zod 結構轉成結構化輸出的格式
 
 const Contact = z.object({ name: z.string(), email: z.string().email(), demo: z.boolean() });
 const parsed = await client.messages.parse({
@@ -557,7 +560,8 @@ console.log(c?.email);`),
       "注意 `parsed_output` 的型別包含 `null`，所以仍然要處理失敗的情況。模型被限制輸出符合 JSON Schema 的內容（結構化輸出），能大幅降低格式錯誤，**但 Schema 只保證形狀，不保證內容合理**（金額可能是負的、ID 可能是編的），所以仍要加業務規則（`positive()`、`refine`）和自己的檢查。（SDK 的 API 隨版本變動，以官方為準；細節見安全階段的輸出驗證。）",
 
       "**六、驗證失敗 → 回饋給模型 → 重試（有上限）。** 這是處理 LLM 輸出最實用的模式：把 Zod 的錯誤訊息（`prettifyError`）告訴模型，讓它修正。實測（假的模型依序回：非 JSON、格式錯誤的 JSON、正確的 JSON）：",
-      C(String.raw`async function getValidated(ask: (feedback?: string) => Promise<string>, max = 3) {
+      C(String.raw`// getValidated：請模型輸出 JSON 並用 zod 驗證，不過就把錯誤回饋給它重試，輸入提問函式與最大次數，輸出{ 次數, 資料 }或 null
+async function getValidated(ask: (feedback?: string) => Promise<string>, max = 3) {
   let feedback: string | undefined;
   for (let attempt = 1; attempt <= max; attempt++) {
     const text = await ask(feedback);
@@ -627,7 +631,8 @@ if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") {
 }`),
 
       "**四、型別化的 DOM 輔助函式：** `querySelector` 可能回傳 `null`，且型別是泛用的 `Element`。包一個函式，找不到就明確丟錯，並讓呼叫端指定元素類型：",
-      C(String.raw`function $<T extends HTMLElement>(sel: string): T {
+      C(String.raw`// $：依選擇器找元素，找不到就丟出錯誤（頁面結構錯了早點發現），輸入選擇器，輸出元素
+function $<T extends HTMLElement>(sel: string): T {
   const el = document.querySelector<T>(sel);
   if (!el) throw new Error(` + "`找不到元素 ${sel}`" + String.raw`);       // 頁面結構錯了就早點失敗
   return el;
@@ -642,6 +647,7 @@ const stopBtn = $<HTMLButtonElement>("#stop");`),
       C(String.raw`const history: ChatMessage[] = [];
 let controller: AbortController | null = null;
 
+// addLine：在對話區加一行文字（用 textContent 避免 XSS），輸入樣式與文字，輸出新建的 div
 function addLine(cls: string, text: string): HTMLDivElement {
   const div = document.createElement("div");
   div.className = cls;
@@ -649,8 +655,10 @@ function addLine(cls: string, text: string): HTMLDivElement {
   log.append(div);
   return div;
 }
+// setBusy：忙碌時停用送出鈕、啟用停止鈕，輸入是否忙碌，輸出無
 function setBusy(busy: boolean) { sendBtn.disabled = busy; stopBtn.disabled = !busy; }
 
+// ask：送出使用者訊息並串流顯示模型回答，可中止，輸入文字，輸出無
 async function ask(text: string) {
   addLine("u", ` + "`你：${text}`" + String.raw`);
   history.push({ role: "user", content: text });

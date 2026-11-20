@@ -38,7 +38,7 @@ window.LESSON = window.LESSON || {};
         "**中介層由內而外**處理回應，再由 ASGI 伺服器送回用戶端。",
       ] },
       "**為什麼說『型別提示驅動』是它的核心？** 你只寫一次函式簽名，FastAPI 就同時拿它做四件事：解析參數來源、驗證資料、產生 API 文件（/docs 頁面）、給編輯器補全。換句話說，型別提示在這裡不是註解，而是**會被執行階段讀取的設定**。",
-      C(String.raw`from fastapi import FastAPI
+      C(String.raw`from fastapi import FastAPI  # FastAPI：建立應用程式物件
 from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 app = FastAPI()
@@ -71,7 +71,7 @@ def chat(req: ChatRequest):   # FastAPI 看到參數型別是 BaseModel，就知
         "**不確定時：**官方的建議是用一般的 def。",
         "依賴函式（本組第 4 課）遵守同樣規則：def 的依賴會跑在執行緒池，async def 的跑在事件迴圈。兩種可以自由混用。",
       ] },
-      C(String.raw`import time
+      C(String.raw`import time  # time：計時與暫停
 from fastapi import FastAPI  # FastAPI：建立應用程式物件
 
 app = FastAPI()
@@ -117,7 +117,7 @@ async def good_async():
         "**別名（alias）三兄弟：**alias 同時用於輸入與輸出；validation_alias 只用在輸入；serialization_alias 只用在輸出，而且輸出時要 by_alias=True 才會生效。",
         "**預設值預設不會被驗證：**要驗證預設值得設 validate_default=True。",
       ] },
-      C(String.raw`from typing import Annotated
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
 from uuid import uuid4  # uuid4：產生隨機唯一編號
 from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
@@ -147,7 +147,7 @@ scores: list[PositiveInt]   # 每個元素都必須大於 0`),
         ["plain", "取代 Pydantic 內建的驗證，執行完就結束", "完全自訂解析；注意它會略過型別檢查"],
         ["wrap", "拿到一個 handler，可在 Pydantic 驗證前後都插手", "需要攔截、記錄或失敗時改用備案"],
       ] } },
-      C(String.raw`from typing import Annotated
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
 from typing_extensions import Self  # Self：標註『回傳自己這個類別』
 from pydantic import AfterValidator, BaseModel, field_validator, model_validator  # AfterValidator：型別驗證完之後再做的檢查；BaseModel：資料模型的基底類別，會自動驗證欄位；field_validator：針對單一欄位寫自訂驗證；model_validator：針對整個模型（跨欄位）寫自訂驗證
 
@@ -189,7 +189,7 @@ class Signup(BaseModel):
         "**before 驗證器不要修改傳入的物件：**聯合型別（union）可能把被改過的值傳給其他成員。",
       ] },
       "**嚴格模式（strict）：預設是『寬鬆轉換』，嚴格模式是『拒絕轉換』。** 寬鬆模式下字串 \"123\" 對 int 欄位會被轉成 123；嚴格模式下直接報錯。官方列出三種開啟方式：",
-      C(String.raw`from pydantic import BaseModel, ConfigDict, Field
+      C(String.raw`from pydantic import BaseModel, ConfigDict, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；ConfigDict：設定模型行為；Field：替欄位加上限制與設定
 
 # 1. 整個模型嚴格
 class User(BaseModel):
@@ -228,7 +228,7 @@ class Item(BaseModel):
         "**exclude_defaults：**排除值等於預設值的欄位。",
         "**exclude_none：**排除值是 None 的欄位。",
       ] },
-      C(String.raw`from pydantic import BaseModel
+      C(String.raw`from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class Profile(BaseModel):
     name: str
@@ -249,7 +249,7 @@ patch.model_dump(exclude_unset=True)    # {"name": "小明"}
 # 它仍然算『已設定』，exclude_unset 會保留它；exclude_defaults 才會把它排除。`),
       { tip: "實作 PATCH 時的標準做法：用 model_dump(exclude_unset=True) 取出『使用者真的想改的欄位』，再合併到資料庫的舊資料。如果直接用 model_dump()，沒傳的欄位會被預設值覆蓋掉。" },
       "**field_serializer：自訂某些欄位的輸出格式。** 模式有 plain（預設，完全取代內建序列化）與 wrap（拿到 handler，可在前後加工）。常見用途：把 datetime 輸出成特定格式、把 Enum 輸出成顯示名稱。",
-      C(String.raw`from datetime import datetime
+      C(String.raw`from datetime import datetime  # datetime：日期時間型別
 from pydantic import BaseModel, field_serializer  # BaseModel：資料模型的基底類別，會自動驗證欄位；field_serializer：自訂某欄位輸出時的格式
 
 class Event(BaseModel):
@@ -266,7 +266,7 @@ class Event(BaseModel):
         "**left_to_right 模式：**依宣告順序嘗試，第一個成功就用。順序會影響結果：int | str 遇到 \"456\" 會變成整數 456。",
         "**有判別欄位的聯合（discriminated union）：**每個成員有一個 Literal 型別的共同欄位，Pydantic 看這個欄位就知道該用哪個成員，只驗證那一個。**官方通常建議用這種**，效率較高，錯誤訊息也更清楚（會指出 pet.dog.barks 這種路徑）。",
       ] },
-      C(String.raw`from typing import Literal
+      C(String.raw`from typing import Literal  # Literal：限定只能是某幾個固定值
 from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
 # 假設 LLM 被要求輸出『下一步動作』，可能是兩種形狀之一
@@ -286,7 +286,7 @@ Step.model_validate({"action": {"kind": "search", "query": "pydantic"}})
 # 結果是 SearchAction；如果少了 query，錯誤只會指向 action.search.query，
 # 不會同時列出 AnswerAction 的一堆無關錯誤`),
       "**TypeAdapter：為『不是 BaseModel 的型別』做驗證。** 例如 list[User]、TypedDict、dataclass、基本型別。用途：LLM 回傳一個 JSON 陣列、你不想為了它多寫一個外層模型時。官方的效能建議：**同一個型別只建立一次 TypeAdapter 然後重複使用**，因為建立時要建構驗證結構，有成本。另外 dump_json 回傳的是 bytes，不是字串（和 model_dump_json 不同）。",
-      C(String.raw`from pydantic import BaseModel, TypeAdapter
+      C(String.raw`from pydantic import BaseModel, TypeAdapter  # BaseModel：資料模型的基底類別，會自動驗證欄位；TypeAdapter：替非 BaseModel 的型別做驗證
 
 class User(BaseModel):
     name: str
@@ -318,7 +318,7 @@ def parse_users(raw: list[dict]) -> list[User]:
       { note: "**白話版：** 依賴注入的白話意思是：你的函式需要什麼東西（資料庫連線、目前登入的使用者、設定），不用自己去拿，而是『宣告我需要它』，框架會在呼叫你之前準備好送過來。好處是共用、好換、好測試。像餐廳點套餐，你只說要哪一套，配菜由廚房備好。" },
       "**依賴注入（Dependency Injection）是 FastAPI 的第二根支柱。** 白話：你的路由函式不要自己去『找』資料庫連線、目前登入的使用者、設定值，而是在簽名裡**宣告『我需要什麼』**，由 FastAPI 在呼叫你之前把它準備好、傳進來。好處：共用邏輯只寫一次、路由函式專心處理業務、**測試時可以把依賴換成假的**（本組第 7 課）。",
       "**最小例子（官方）：** 依賴就是一個函式，參數規則和路由函式一樣（可以有查詢參數、標頭等）。用 Depends() 掛上去，**傳函式本身，不要加括號呼叫**。",
-      C(String.raw`from typing import Annotated
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
 from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 
 app = FastAPI()
@@ -345,7 +345,7 @@ CommonsDep = Annotated[dict, Depends(common_parameters)]
 async def read_things(commons: CommonsDep):
     return commons`),
       "**依賴可以有依賴（子依賴），形成一棵樹，FastAPI 自動由下往上解析。** 官方範例：query_or_cookie_extractor 依賴 query_extractor，路由只要宣告最上層那個。**同一個依賴在同一個請求裡被多次用到時，只會執行一次，結果會被快取並共用**（官方：每個請求各自快取，下個請求會重新執行）。需要每次都重新執行時，用 Depends(函式, use_cache=False)。",
-      C(String.raw`from typing import Annotated
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
 from fastapi import Cookie, Depends, FastAPI  # Cookie：從 cookie 取值；Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 
 app = FastAPI()
@@ -388,7 +388,7 @@ async def list_docs(page: Annotated[Pagination, Depends()]):   # 空的 Depends(
         "**清理順序：**依賴者先結束，被依賴者後結束（c 先、再 b、再 a），因為 c 的清理可能還要用到 b。",
         "**scope 參數：**Depends(函式, scope=\"function\") 讓清理在路由函式回傳之後、回應送出之前執行；預設的 request 則是回應送出之後。官方規則：request 範圍的依賴只能有 request 範圍的子依賴。",
       ] },
-      C(String.raw`from typing import Annotated
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
 from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 
 app = FastAPI()
@@ -426,7 +426,7 @@ async def rows(db: Annotated[DBSession, Depends(get_db)]):
       { note: "**白話版：** 設定與機密指的是『會因環境而不同、或不能外洩的值』：資料庫網址、API 金鑰、模式開關。原則是不要寫死在程式裡，而是放在環境變數或設定檔，程式啟動時讀進來並檢查格式。這樣同一份程式在你的電腦和正式環境能用不同的設定，金鑰也不會被一起上傳到公開的地方。" },
       "**設定管理要解決的問題：** API 金鑰、資料庫網址、模型名稱、功能開關，這些不能寫死在程式碼裡（會被提交到版本控制、不同環境又需要不同值）。標準做法是**從環境變數讀入，並在啟動時一次驗證完**。FastAPI 官方建議用 pydantic-settings 的 BaseSettings。這一課和 [[net-sec]] 的機密管理是同一件事的兩面：那邊講『金鑰不能外洩』，這裡講『程式怎麼乾淨地拿到設定』。",
       "**安裝與基本用法（官方）：** pydantic-settings 是獨立套件（pip install pydantic-settings）。繼承 BaseSettings 的類別，沒有明確傳入的欄位會**自動從環境變數讀取**，環境變數名稱不分大小寫（APP_NAME 對應 app_name），並且像一般 Pydantic 模型一樣轉型與驗證（環境變數永遠是字串，會依欄位型別轉換）。沒有預設值又缺少環境變數，啟動時就會報驗證錯誤，**這是好事：壞設定在啟動時就失敗，而不是上線後某個請求才爆**。",
-      C(String.raw`from pydantic_settings import BaseSettings, SettingsConfigDict
+      C(String.raw`from pydantic_settings import BaseSettings, SettingsConfigDict  # BaseSettings：從環境變數與 .env 讀設定的基底類別；SettingsConfigDict：設定 BaseSettings 的行為（例如 .env 路徑）
 
 class Settings(BaseSettings):
     app_name: str = "Awesome API"      # 有預設值：環境變數沒設就用這個
@@ -456,7 +456,7 @@ class Settings(BaseSettings):
         "**預設值也會被驗證：**官方說 BaseSettings 與 BaseModel 不同，預設值預設就會驗證（可用 validate_default=False 關掉）。",
       ] },
       "**在 FastAPI 裡的標準接法（官方）：** 不要在模組層級建立全域的 settings，而是寫一個 get_settings 依賴，並用 functools.lru_cache 快取。原因：沒有快取的話，每個請求都會重新建立 Settings、重新讀 .env 檔。有了 lru_cache，函式永遠回傳同一個物件（幾乎像全域變數），同時**它還是一個依賴，測試時可以覆寫**（本組第 7 課）。",
-      C(String.raw`from functools import lru_cache
+      C(String.raw`from functools import lru_cache  # lru_cache：快取函式的回傳值
 from typing import Annotated  # Annotated：替型別附加額外資訊
 from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 from pydantic_settings import BaseSettings  # BaseSettings：從環境變數與 .env 讀設定的基底類別
@@ -498,7 +498,7 @@ async def info(settings: Annotated[Settings, Depends(get_settings)]):
       "**輸入有 Pydantic 把關，輸出同樣要把關。** 這一課講三件事：回應模型（決定『回給用戶端的資料長什麼樣』）、錯誤處理（出錯時回什麼）、中介層（每個請求都要做的橫切邏輯）。",
       "**回應模型（response_model）與回傳型別註記：** 官方說明 FastAPI 會用它做四件事：**驗證**回傳的資料（不符合就回伺服器錯誤，而不是送出錯誤資料，因為這是你程式的 bug）、**產生** JSON Schema 給 API 文件、**序列化**成 JSON、以及**過濾**，只保留模型裡有的欄位。",
       "**最重要的用途：防止洩漏欄位。** 官方範例是使用者建立 API：輸入模型有 password，輸出模型沒有。就算路由不小心回傳了含密碼的物件，過濾也會把它拿掉：",
-      C(String.raw`from typing import Any
+      C(String.raw`from typing import Any  # Any：表示任意型別
 from fastapi import FastAPI  # FastAPI：建立應用程式物件
 from pydantic import BaseModel, EmailStr   # EmailStr 需要另外安裝 email-validator 套件
 
@@ -538,7 +538,7 @@ async def create_user(user: UserIn) -> Any:
         "**官方的警告：**RequestValidationError 含有檔案與行號資訊，直接回傳 str(exc) 可能洩漏系統細節；把 body 原樣回傳給用戶端在正式環境也要小心。",
         "**處理 Starlette 的 HTTPException：**FastAPI 的 HTTPException 是 Starlette 的子類別。想攔截所有 HTTP 例外（含 Starlette 內部丟的，例如 404 找不到路由），要註冊在 starlette.exceptions.HTTPException 上。",
       ] },
-      C(String.raw`from fastapi import FastAPI, HTTPException, Request
+      C(String.raw`from fastapi import FastAPI, HTTPException, Request  # FastAPI：建立應用程式物件；HTTPException：丟出帶狀態碼的 HTTP 錯誤；Request：代表一個進來的請求
 from fastapi.responses import JSONResponse  # JSONResponse：自訂 JSON 回應內容與狀態碼
 
 app = FastAPI()
@@ -565,7 +565,7 @@ async def read_item(item_id: str):
         raise HTTPException(status_code=404, detail="Item not found")
     return {"item": item_id}`),
       "**中介層（middleware）：每個請求都要經過的橫切邏輯。** 用 @app.middleware(\"http\") 註冊，函式收到 request 與 call_next；await call_next(request) 之前的程式在路由之前執行，之後的程式在回應產生之後執行。典型用途：量測處理時間、加上請求編號、記錄存取日誌。官方範例用 time.perf_counter() 量時間，並加上 X-Process-Time 標頭。",
-      C(String.raw`import time
+      C(String.raw`import time  # time：計時與暫停
 from fastapi import FastAPI, Request  # FastAPI：建立應用程式物件；Request：代表一個進來的請求
 
 app = FastAPI()
@@ -595,7 +595,7 @@ async def add_process_time_header(request: Request, call_next):
       { note: "**白話版：** 測試是『不用真的開伺服器、用程式假裝成客人去敲 API，檢查回應對不對』。這一課也列了 AI 服務特有的坑：模型回得慢、輸出不穩定、串流中斷等。重點是學會在不呼叫真模型（花錢又慢）的情況下，也能驗證你的服務邏輯正確。" },
       "**依賴注入最大的回報在測試。** 因為路由函式只『宣告需要什麼』，測試時就能把真的資料庫、真的 LLM 用戶端、真的認證服務換成假的，不需要碰網路，也不花錢。",
       "**TestClient（官方）：** 它是以 HTTPX 為基礎的測試用戶端（所以要安裝 httpx 與 pytest），從 fastapi.testclient 匯入。**測試函式是一般的 def，不是 async def，呼叫也不用 await**，因此可以直接用 pytest。測試函式名稱用 test_ 開頭，用 assert 檢查。需要測試 async 的資料庫呼叫等情況，官方另有 Async Tests 說明。",
-      C(String.raw`from fastapi import FastAPI
+      C(String.raw`from fastapi import FastAPI  # FastAPI：建立應用程式物件
 from fastapi.testclient import TestClient  # TestClient：不開伺服器、直接在程式裡呼叫應用以便測試
 
 app = FastAPI()
@@ -613,7 +613,7 @@ def test_read_main():             # 一般 def，不用 await
     assert response.status_code == 200
     assert response.json() == {"msg": "Hello World"}`),
       "**覆寫依賴（app.dependency_overrides，官方）：** 它是一個普通字典，**鍵是原本的依賴函式，值是用來取代的函式**。被覆寫的依賴（連同它的子依賴）完全不會執行。典型情境：外部認證服務很慢或按次計費，測試時覆寫成回傳假使用者；或把設定換成測試用的值。可以覆寫應用裡任何地方用到的依賴。測完要重置：app.dependency_overrides = {}；只想在部分測試覆寫，就在測試開頭設定、結尾重置。",
-      C(String.raw`from typing import Annotated
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
 from fastapi import Depends, FastAPI  # Depends：宣告依賴，由框架幫你準備；FastAPI：建立應用程式物件
 from fastapi.testclient import TestClient  # TestClient：不開伺服器、直接在程式裡呼叫應用以便測試
 

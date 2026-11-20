@@ -174,6 +174,7 @@ window.LESSON = window.LESSON || {};
       C(String.raw`interface Env { TURNSTILE_SECRET: string }
 interface SiteverifyResponse { success: boolean; "error-codes": string[]; hostname?: string }
 
+// verifyTurnstile：把前端的 token 送到 Cloudflare 驗證，輸入 token、密鑰與使用者 IP，輸出驗證結果
 async function verifyTurnstile(token: string, secret: string, ip?: string): Promise<SiteverifyResponse> {
   const body = new FormData();
   body.append("secret", secret);

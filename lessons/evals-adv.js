@@ -28,33 +28,39 @@ window.LESSON = window.LESSON || {};
         "**nDCG@k：** 同時考慮「相關程度」和「排名」：排越前面權重越高，越相關的分數越高；再除以理想排序的分數，變成 0 到 1。標了相關程度（不只是 0 和 1）時用它",
       ] },
 
-      C(String.raw`import math
+      C(String.raw`import math  # math：數學函式
 
+# recall_at_k：前 k 名找回了多少比例的相關文件，輸入排名、相關集合與 k，輸出 0 到 1
 def recall_at_k(ranked, relevant, k):
     return len(set(ranked[:k]) & relevant) / len(relevant)
 
+# precision_at_k：前 k 名裡有多少比例是相關的，輸入排名、相關集合與 k，輸出 0 到 1
 def precision_at_k(ranked, relevant, k):
     return len(set(ranked[:k]) & relevant) / k
 
+# hit_at_k：前 k 名只要有任一相關文件就算命中，輸入排名、相關集合與 k，輸出 1.0 或 0.0
 def hit_at_k(ranked, relevant, k):
     return 1.0 if set(ranked[:k]) & relevant else 0.0
 
+# reciprocal_rank：第一個相關文件名次的倒數，輸入排名與相關集合，輸出數值（都沒找到為 0）
 def reciprocal_rank(ranked, relevant):
     for i, d in enumerate(ranked, 1):          # 名次從 1 開始數
         if d in relevant:
             return 1 / i
     return 0.0                                  # 整串都沒有相關文件
 
+# dcg：折扣累計增益，名次越後面分數打越多折，輸入每個位置的分數，輸出一個數值
 def dcg(gains):
     return sum(g / math.log2(i + 1) for i, g in enumerate(gains, 1))
 
+# ndcg_at_k：實際排序的 DCG 除以理想排序的 DCG，輸入排名、各文件分級與 k，輸出 0 到 1
 def ndcg_at_k(ranked, rel, k):
     gains = [rel.get(d, 0) for d in ranked[:k]]            # 每個位置拿到的分數
     ideal = sorted(rel.values(), reverse=True)[:k]         # 理想排序：高分的全部排最前面
     return dcg(gains) / dcg(ideal) if ideal and dcg(ideal) else 0.0`),
 
       "**對整個資料集算平均**（以上面三題實際執行的結果）：",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
 for k in (1, 3, 5):
     print("k =", k,
@@ -71,7 +77,7 @@ print("nDCG@5", [round(ndcg_at_k(c["ranked"], c["rel"], 5), 3) for c in cases])
 # nDCG@5 [0.64, 0.5, 0.0]`),
 
       "**手算驗證第一題的 nDCG@5：** 排名是 d3、d1、d7、d2、d9，各位置得分是 0、3、0、1、0。DCG = 3/log2(3) + 1/log2(5) ≈ 1.893 + 0.431 = 2.324。理想排序是 3、1，IDCG = 3 + 1/log2(3) ≈ 3.631。2.324 / 3.631 ≈ 0.64，和程式一致。也和 scikit-learn 的 `ndcg_score` 對過，結果相同：",
-      C(String.raw`from sklearn.metrics import ndcg_score
+      C(String.raw`from sklearn.metrics import ndcg_score  # ndcg_score：計算排序品質指標 NDCG
 
 docs = ["d1", "d2", "d3", "d7", "d9"]                           # 固定一個文件順序
 y_true = [[cases[0]["rel"].get(d, 0) for d in docs]]            # 每份文件的真實相關程度
@@ -80,7 +86,8 @@ y_score = [[pos[d] for d in docs]]
 print(round(ndcg_score(y_true, y_score, k=5), 3))               # 0.64`),
 
       "**一個通用的檢索器評測函式**（`retriever` 是任何「問題進、文件 id 清單出」的函式，之後換檢索策略、換 embedding 模型、加 reranking，都用同一個函式比較）：",
-      C(String.raw`def evaluate_retriever(retriever, dataset, k=5):
+      C(String.raw`# evaluate_retriever：對整批題目跑檢索並算指標，輸入檢索函式、資料集與 k，輸出（平均指標，每題明細）
+def evaluate_retriever(retriever, dataset, k=5):
     rows = []
     for item in dataset:
         ranked = retriever(item["question"])[:k]
@@ -136,8 +143,8 @@ print(round(ndcg_score(y_true, y_score, k=5), 3))               # 0.64`),
       ] },
       "為什麼要拆開，而不是直接問「這個答案忠實嗎？」？因為答案裡只要有**一句**亂編，整體看起來還是很像對的，模型整體判斷時很容易放過；逐句檢查可以抓出具體是哪一句有問題，也能量化。",
 
-      C(String.raw`import anthropic
-from pydantic import BaseModel
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 client = anthropic.Anthropic()
 
@@ -148,6 +155,7 @@ class Support(BaseModel):
     reason: str
     supported: bool
 
+# extract_claims：請模型把回答拆成一條條可驗證的陳述，輸入回答，輸出陳述清單
 def extract_claims(answer):
     r = client.messages.parse(
         model="claude-haiku-5-5", max_tokens=1024, output_format=Claims,
@@ -156,6 +164,7 @@ def extract_claims(answer):
     )
     return r.parsed_output.claims
 
+# check_claim：只根據給定資料，請模型判斷一條陳述能否被支持，輸入陳述與資料段落，輸出 True 或 False
 def check_claim(claim, contexts):
     r = client.messages.parse(
         model="claude-haiku-5-5", max_tokens=1024, output_format=Support,
@@ -166,6 +175,7 @@ def check_claim(claim, contexts):
     )
     return r.parsed_output.supported
 
+# faithfulness：忠實度，被資料支持的陳述所占比例，輸入回答與資料段落，輸出（分數，未被支持的陳述）
 def faithfulness(answer, contexts):
     claims = extract_claims(answer)
     if not claims:
@@ -220,7 +230,7 @@ print(faithfulness(answer, contexts))
       "重點不是「評審不能用」，而是：**每一種偏誤都可以量測，也有對應的緩解方法**。不量測就不知道偏誤有多大。",
 
       "**量測位置偏誤：把兩個回答的順序對調，各問一次。** 如果評審沒有位置偏誤，對調後應該還是選同一個回答。統計兩件事：「對調後結論一致的比例」和「選 A（第一個）的比例」：",
-      C(String.raw`import random
+      C(String.raw`import random  # random：亂數
 
 def pairwise_consistency(judge, items):
     """judge(問題, 第一個回答, 第二個回答) 回傳 'A' 或 'B'"""
@@ -256,7 +266,7 @@ print(pairwise_consistency(good, items))
       ] },
 
       "**量測長度偏誤：看評審的分數和回答長度的相關。** 如果你有「真實品質」的人工分數，比較「人工分數 vs 長度」和「評審分數 vs 長度」的相關係數：人工的相關低、評審的相關高，就代表評審被長度影響：",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
 rng = np.random.default_rng(0)
 lengths = rng.integers(50, 500, 100)                       # 100 個回答的長度
@@ -309,7 +319,7 @@ print("評審分數 vs 長度：", round(float(np.corrcoef(judge_scores, lengths
       "規則寫完，先找兩個人（或自己隔幾天）各標 10 題試做，看哪些題目意見不同，**修改規則**，這個步驟通常要重複兩三輪。意見不同往往不是人的錯，而是規則沒寫清楚。",
 
       "**第二步：用表格工具標，最簡單就是 CSV。** 產生一份待標檔，讓人用 Excel 或試算表填 `label` 欄，再讀回來：",
-      C(String.raw`import csv
+      C(String.raw`import csv  # csv：讀寫 CSV
 
 rows = [{"id": f"c{i}", "question": f"問題{i}", "answer": f"答案{i}", "label": ""} for i in range(4)]
 with open("to_label.csv", "w", newline="", encoding="utf-8-sig") as f:      # utf-8-sig：Excel 才能正確顯示中文
@@ -323,7 +333,8 @@ with open("labeled.csv", newline="", encoding="utf-8-sig") as f:
       "大規模、多人協作時可以用專門的標註工具。例如 LangSmith 有「標註佇列（annotation queue）」，讓人在網頁上逐筆審核並留下回饋（見官方文件的評測概念）。工具是次要的，規則寫得好不好才是關鍵。",
 
       "**第三步：同一批題目請兩個人各標一次，算一致程度。** 最直覺的是「一致率」：兩人標籤相同的比例。但一致率會被**隨機湊巧一致**灌水。**Cohen's kappa** 把「湊巧一致」的部分扣掉：",
-      C(String.raw`def cohen_kappa(a, b):
+      C(String.raw`# cohen_kappa：扣掉碰巧一致後的評分者一致性，輸入兩組標籤，輸出 kappa 值
+def cohen_kappa(a, b):
     n = len(a)
     po = sum(x == y for x, y in zip(a, b)) / n                          # 觀察到的一致率
     labels = set(a) | set(b)
@@ -334,7 +345,7 @@ h1 = [1, 1, 0, 1, 0, 0, 1, 1, 0, 1]
 h2 = [1, 0, 0, 1, 0, 1, 1, 1, 0, 1]
 print(cohen_kappa(h1, h2))        # 0.5833...    一致率是 0.8，扣掉碰巧後 kappa 約 0.58
 
-from sklearn.metrics import cohen_kappa_score
+from sklearn.metrics import cohen_kappa_score  # cohen_kappa_score：計算兩位評分者的一致性（Cohen kappa）
 print(cohen_kappa_score(h1, h2))  # 0.5833...    和 scikit-learn 一致`),
       "kappa 的範圍是 -1 到 1：1 代表完全一致，0 代表跟亂猜差不多。常見的粗略參考是 0.6 以上算「還可以」、0.8 以上算「很好」，但這不是絕對標準，要看任務難度。**kappa 偏低時，先修規則，不是怪標註的人。**",
 
@@ -382,7 +393,7 @@ print("真正的好答案被找出幾成（recall）", round(tp / (tp + fn), 2))
       "階段 4 的迴歸測試是「通過率有沒有掉」。這一課處理它的兩個進階問題：**1. 差異是真的還是雜訊？ 2. 怎麼自動在每次修改時跑？**",
 
       "**先看雜訊有多大。** 假設你的系統真實通過率是 80%，用 30 題的資料集，**什麼都不改**、連續跑兩次，兩次通過率差 10 個百分點以上的機率有多高？模擬 1000 次：",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
 rng = np.random.default_rng(2)
 diffs = []
@@ -395,8 +406,9 @@ print(np.mean(np.array(diffs) >= 0.1))
       "也就是說，**30 題的資料集上，「通過率掉了 10%」可能什麼都不代表**。要判斷改動有沒有影響，需要知道數字的不確定範圍。",
 
       "**信賴區間（Wilson 區間）：** 通過率是「n 題裡對了幾題」，它的不確定範圍可以用 Wilson 區間算。不需要額外套件：",
-      C(String.raw`import math
+      C(String.raw`import math  # math：數學函式
 
+# wilson：通過率的 Wilson 信賴區間，輸入通過率、題數與 z 值，輸出（下界，上界）
 def wilson(p_hat, n, z=1.96):          # z = 1.96 對應 95% 信賴區間
     d = 1 + z * z / n
     center = (p_hat + z * z / (2 * n)) / d
@@ -408,8 +420,9 @@ print(wilson(0.8, 200))    # (0.739, 0.85)     200 題才縮到 74% 到 85%`),
       "同樣是 80%，20 題和 200 題的可信度差很多。報告通過率時，**一定要附上題數**，最好附區間。",
 
       "**比較兩個版本：配對 bootstrap。** 舊版和新版是在**同一批題目**上跑的，所以可以逐題比較（配對）。做法：對「新版減舊版」的逐題差，重複抽樣很多次，看平均差的範圍。範圍包含 0，就不能說有差別：",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
+# paired_bootstrap：逐題配對後重複抽樣，輸入新舊兩組成績，輸出（平均差，95% 區間下界，上界）
 def paired_bootstrap(old, new, n_boot=10000, seed=0):
     rng = np.random.default_rng(seed)
     diffs = np.array(new, float) - np.array(old, float)          # 逐題差：+1 修好、-1 退步、0 不變
@@ -440,12 +453,13 @@ print(paired_bootstrap(old, new))
         "**換模型、大改動：** 重跑完整資料集與評審的校準，必要時重建基準線",
         "**快取：** 把「提示詞 + 模型 + 輸入」的雜湊當 key，結果存起來；沒改的題目不用重打 API。省錢又提速",
       ] },
-      C(String.raw`import hashlib, json
-from pathlib import Path
+      C(String.raw`import hashlib, json  # hashlib：計算雜湊（例如 SHA256）；json：讀寫 JSON
+from pathlib import Path  # Path：處理檔案路徑的物件
 
 CACHE = Path(".eval_cache")
 CACHE.mkdir(exist_ok=True)
 
+# cached_call：同樣的模型與提示詞只呼叫一次，結果存成檔案重複使用，輸入呼叫函式、模型、提示詞與參數，輸出模型輸出
 def cached_call(call, model, prompt, **params):
     key_src = json.dumps({"model": model, "prompt": prompt, "params": params}, sort_keys=True, ensure_ascii=False)
     key = hashlib.sha256(key_src.encode("utf-8")).hexdigest()
@@ -491,9 +505,10 @@ def cached_call(call, model, prompt, **params):
       ] },
 
       "**第一步：記錄。** 最簡單就是一行一筆 JSON（JSONL）。重點是欄位要夠，之後才查得到：",
-      C(String.raw`import json, time, uuid
-from datetime import datetime, timezone
+      C(String.raw`import json, time, uuid  # json：讀寫 JSON；time：計時與暫停；uuid：產生唯一識別碼
+from datetime import datetime, timezone  # datetime：日期時間型別；timezone：時區物件
 
+# log_trace：把一次請求的欄位加上編號與時間，附加寫進 JSONL 檔，輸入路徑與欄位，輸出 trace_id
 def log_trace(path, **fields):
     record = {
         "trace_id": str(uuid.uuid4()),
@@ -514,8 +529,9 @@ log_trace("traces.jsonl",
       "正式環境通常會用專門的追蹤工具（例如 LangSmith 的 trace）而不是自己寫檔，但概念相同。重點是**每筆都帶著提示詞版本和模型名稱**，才能比較「改版前後」。",
 
       "**第二步：抽樣。** 用 `trace_id` 的雜湊決定要不要抽，好處是**同一筆永遠得到同一個決定**，可重現，不會因為重跑而抽到不同的：",
-      C(String.raw`import hashlib
+      C(String.raw`import hashlib  # hashlib：計算雜湊（例如 SHA256）
 
+# sampled：用 trace_id 的雜湊決定要不要抽樣，同一個編號結果固定，輸入編號與抽樣率，輸出 True 或 False
 def sampled(trace_id, rate):
     bucket = int(hashlib.sha256(trace_id.encode()).hexdigest(), 16) % 10000
     return bucket < rate * 10000
@@ -534,7 +550,8 @@ print(sampled("t1", 0.05) == sampled("t1", 0.05))   # True   同一筆每次結�
       ] },
 
       "**第四步：監控與漂移。** 把指標按時間（例如每天或每週）彙整，和前一期比較。通過率「真的掉了」還是「只是雜訊」，要用上一課的信賴區間判斷。簡單的告警規則：",
-      C(String.raw`def drift(prev_rate, cur_rate, threshold=0.1):
+      C(String.raw`# drift：比較前後通過率，掉超過門檻就告警，輸入前後比率與門檻，輸出 True 或 False
+def drift(prev_rate, cur_rate, threshold=0.1):
     return (cur_rate - prev_rate) <= -threshold      # 掉超過 10 個百分點就告警
 
 print(drift(0.85, 0.72))    # True
@@ -556,8 +573,9 @@ print(drift(0.85, 0.80))    # False`),
         "限制誰能看這些紀錄；交給標註者之前要去識別化",
         "使用者的資料出現在公開處所或提供給第三方的工具前，確認服務條款與公司規範，必要時取得同意",
       ] },
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
+# mask：把文字裡的電子郵件與手機號碼換成佔位符，輸入文字，輸出遮蔽後的文字
 def mask(text):
     text = re.sub(r"[\w.+-]+@[\w-]+\.[\w.]+", "[EMAIL]", text)
     text = re.sub(r"\b09\d{2}-?\d{3}-?\d{3}\b", "[PHONE]", text)
@@ -626,7 +644,7 @@ npx promptfoo@latest eval --fail-on-error       # 有測試失敗就讓指令失
 
       "**Ragas：** 官方的 Faithfulness 頁面（新版 collections API）的流程是：建立 LLM（用 `llm_factory`）、匯入 `Faithfulness`、呼叫 `score`（或非同步的 `ascore`），輸入是問題、答案與檢索內容，結果取 `.value`。官方範例用的是 OpenAI 的客戶端；要換成 Claude 當評審，要查 `llm_factory` 目前支援哪些供應商，我沒有驗證。舊版 API（`SingleTurnSample`）文件說明將在 0.4 版棄用、1.0 版移除。",
       C(String.raw`# 結構示意（取自官方 Faithfulness 頁面；沒有執行，細節以官方為準）
-from ragas.metrics.collections import Faithfulness
+from ragas.metrics.collections import Faithfulness  # Faithfulness：RAGAS 的忠實度指標（答案有沒有依據）
 
 scorer = Faithfulness(llm=llm)            # llm 用 ragas.llms 的 llm_factory 建立
 result = scorer.score(
@@ -638,9 +656,9 @@ print(result.value)                       # 0 到 1，越高越忠實`),
 
       "**DeepEval：** 官方 Getting Started 的核心物件：`LLMTestCase`（必填 `input` 與 `actual_output`，選填 `expected_output`）、指標（例如自訂的 `GEval`，有 `name`、`criteria`、`evaluation_params`、`threshold`）、`assert_test(test_case, [metric])`，執行用 `deepeval test run`。文件的範例預設用 OpenAI 當評審（設定 `OPENAI_API_KEY`），其他模型要另外照文件設定。",
       C(String.raw`# test_example.py（結構示意，取自官方 Getting Started；沒有執行）
-from deepeval import assert_test
-from deepeval.test_case import LLMTestCase, LLMTestCaseParams
-from deepeval.metrics import GEval
+from deepeval import assert_test  # assert_test：DeepEval 的測試斷言：沒達標就讓測試失敗
+from deepeval.test_case import LLMTestCase, LLMTestCaseParams  # LLMTestCase：一筆評測資料（輸入、實際輸出、期望輸出）；LLMTestCaseParams：指定評測要看測試資料的哪些欄位
+from deepeval.metrics import GEval  # GEval：用自訂標準讓模型打分的評測指標
 
 correctness = GEval(
     name="Correctness",
@@ -649,6 +667,7 @@ correctness = GEval(
     threshold=0.5,
 )
 
+# test_refund：用 DeepEval 對退貨問題打分，沒達標就讓測試失敗
 def test_refund():
     case = LLMTestCase(input="退貨運費誰出？", actual_output="買家負擔", expected_output="運費由買家負擔")
     assert_test(case, [correctness])`),

@@ -75,8 +75,8 @@ $env:HF_TOKEN = "hf_你的token"
 # 官方說明：HF_TOKEN 設了之後，會蓋過存在本機檔案裡的 token`),
       "**token 存在哪裡：** 官方環境變數頁說明，登入後 token 預設存在 `$HF_HOME/token`，而 `HF_HOME` 預設是 `~/.cache/huggingface`（Windows 上就是你使用者資料夾底下的 `.cache\\huggingface`）。舊的環境變數 `HUGGING_FACE_HUB_TOKEN` 已被標為過時，改用 `HF_TOKEN`。",
       "**在程式裡傳 token：** 多數載入函式都有 `token` 參數（官方 gated 頁提到 `from_pretrained`、`hf_hub_download`、`load_dataset` 都可以）。但把 token 寫死在程式裡很危險，建議讀環境變數：",
-      C(String.raw`import os
-from transformers import AutoModel
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
+from transformers import AutoModel  # AutoModel：依名稱自動載入基礎模型（輸出隱藏狀態）
 
 # 從環境變數取得 token，不要把 hf_ 開頭的字串寫在程式碼裡
 token = os.environ["HF_TOKEN"]
@@ -126,7 +126,7 @@ model = AutoModel.from_pretrained("private/model", token=token)`),
       { note: "**白話版：** 像在購物網站篩選商品：先說你要做什麼任務，再用語言、大小、授權之類的條件縮小，最後挑幾個來比較。" },
       "**網站：** 官方在文件裡多次連到 `huggingface.co/models`，可以依任務、函式庫、授權、語言等篩選，也有依『有沒有雲端供應商提供』來篩選的網址參數，例如文件裡出現過 `models?inference_provider=all&sort=trending&other=conversational`（意思是：列出有任何供應商提供、依熱門排序、屬於對話類的模型）。你在網站上點選篩選條件後，網址列會出現對應參數，官方建議可以從網址去學有哪些篩選值。",
       "**Python：用 HfApi 搜尋（官方 search 指南）：**",
-      C(String.raw`from huggingface_hub import HfApi
+      C(String.raw`from huggingface_hub import HfApi  # HfApi：操作 Hugging Face Hub 的用戶端
 
 api = HfApi()
 
@@ -203,7 +203,7 @@ tags:
       ] } },
       "**讀模型卡的順序（我的建議做法）：** 先看 `license`、`pipeline_tag`、`library_name` 三個，確認授權、任務、載入方式都對得上；再看 `base_model` 判斷它是原廠還是二次加工；最後才讀說明文字裡的用途、限制、評測。",
       "**怎麼把模型卡抓下來看：** 它只是倉庫裡的一個檔案，用下載函式就能拿（函式在本組第 3 課細講）：",
-      C(String.raw`from huggingface_hub import hf_hub_download
+      C(String.raw`from huggingface_hub import hf_hub_download  # hf_hub_download：從 Hub 下載單一檔案
 
 # README.md 就是模型卡；回傳的是它在本機快取裡的路徑（不要修改那個檔案）
 path = hf_hub_download(repo_id="openai-community/gpt2", filename="README.md")
@@ -292,7 +292,7 @@ hf download some-org/some-gated-model --dry-run`),
       { note: "**學會這個可以做什麼：** 你會用 Python 下載單一檔案或整個倉庫、指定版本、只下載需要的檔案，並知道檔案被放到哪裡。" },
       { note: "**白話版：** `hf_hub_download` 是『下載一個檔案』，`snapshot_download` 是『下載整個資料夾』，下載來的東西會放進一個共用的快取區，同樣的檔案不會重複下載。" },
       "**下載單一檔案（官方 download 指南，文件版本 v2.4.0）：**",
-      C(String.raw`from huggingface_hub import hf_hub_download
+      C(String.raw`from huggingface_hub import hf_hub_download  # hf_hub_download：從 Hub 下載單一檔案
 
 # 下載模型倉庫裡的 config.json，回傳它在本機快取裡的路徑
 # repo_id 與 filename 是官方範例名稱
@@ -311,7 +311,7 @@ hf_hub_download(repo_id="lysandre/arxiv-nlp", filename="config.json", revision="
 hf_hub_download(repo_id="lysandre/arxiv-nlp", filename="config.json",
                 revision="877b84a8f93f2d619faa2a6e514a32beef88ab0a")`),
       "**下載整個倉庫與篩選檔案：**",
-      C(String.raw`from huggingface_hub import snapshot_download
+      C(String.raw`from huggingface_hub import snapshot_download  # snapshot_download：把整個模型倉庫下載到本機
 
 # 下載整個倉庫（預設是最新版本），回傳快取裡該版本的資料夾路徑；多個檔案會並行下載
 folder = snapshot_download(repo_id="lysandre/arxiv-nlp")
@@ -464,7 +464,7 @@ hf cache prune --dry-run
 # 驗證本機檔案與 Hub 上的校驗碼是否一致（檢查有沒有下載壞掉）
 hf cache verify openai-community/gpt2`),
       "**用 Python 查與刪（官方）：** `scan_cache_dir()` 回傳整份報告；`.delete_revisions(版本雜湊...)` 回傳一個『刪除策略』，可以看預計釋放多少空間，確認後呼叫 `.execute()` 才真的刪：",
-      C(String.raw`from huggingface_hub import scan_cache_dir
+      C(String.raw`from huggingface_hub import scan_cache_dir  # scan_cache_dir：掃描本機快取佔用空間
 
 info = scan_cache_dir()          # 掃描整個快取（不會修改任何東西）
 print(info.size_on_disk)         # 總共占多少位元組
@@ -520,7 +520,7 @@ hf upload 你的帳號/my-cool-dataset ./data /train --repo-type dataset
 # hf upload 某擁有者/某倉庫 . . --create-pr`),
       "官方說明：`hf upload` 若倉庫不存在會建立；`local_path` 沒給時，若有和倉庫同名的本機資料夾或檔案，就會上傳它；`path_in_repo` 沒給就放在倉庫根目錄。",
       "**用 Python（官方）：**",
-      C(String.raw`from huggingface_hub import HfApi
+      C(String.raw`from huggingface_hub import HfApi  # HfApi：操作 Hugging Face Hub 的用戶端
 
 api = HfApi()
 
@@ -578,7 +578,7 @@ api.upload_folder(
         "**自己別用 pickle 當交換格式**：官方列出 MsgPack、Protobuf、Cap'n Proto、Avro、safetensors 等替代。",
       ] },
       C(String.raw`# 官方範例：從 Flax 檢查點載入，避開 PyTorch 的 pickle 權重檔
-from transformers import AutoModel
+from transformers import AutoModel  # AutoModel：依名稱自動載入基礎模型（輸出隱藏狀態）
 
 # from_flax=True 表示讀 Flax 格式的權重並轉成 PyTorch 模型使用
 model = AutoModel.from_pretrained("google-bert/bert-base-cased", from_flax=True)`),
@@ -598,7 +598,7 @@ model = AutoModel.from_pretrained("google-bert/bert-base-cased", from_flax=True)
       "**官方怎麼說（safetensors 首頁）：** 一種**簡單、安全（相對於 pickle）、同時仍然很快（零複製 zero-copy）**的張量儲存格式。安裝用 `pip install safetensors`。官方首頁列出它被 transformers、diffusers、mlx、llama.cpp 的轉換程式等許多專案使用。",
       "**用法（官方）：**",
       C(String.raw`# 讀取：用 safe_open 一次只取需要的張量（不是整個載入記憶體）
-from safetensors import safe_open
+from safetensors import safe_open  # safe_open：安全地讀 safetensors 檔
 
 tensors = {}
 with safe_open("model.safetensors", framework="pt", device=0) as f:   # device=0 是第一張 GPU
@@ -612,8 +612,8 @@ with safe_open("model.safetensors", framework="pt", device=0) as f:
     part = tensor_slice[:, :hidden_dim]
 
 # 儲存
-import torch
-from safetensors.torch import save_file
+import torch  # torch：PyTorch：張量運算與神經網路
+from safetensors.torch import save_file  # save_file：把張量存成 safetensors 檔
 save_file({"embedding": torch.zeros((2, 2))}, "model.safetensors")`),
       "**我能確認與不能確認的：** 首頁只說明格式簡單、安全、快速（零複製），並沒有在這頁逐點列出攻擊面的分析；『不能執行程式碼』是從它不是 pickle 這件事推論出來的。如果你要在高安全需求的環境依賴它，請讀官方的安全相關說明（我沒讀）。",
       "**實用做法：只下載 safetensors（官方 CLI）：**",

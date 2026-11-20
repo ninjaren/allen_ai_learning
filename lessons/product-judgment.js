@@ -41,12 +41,14 @@ window.LESSON = window.LESSON || {};
       ] },
 
       "**混合設計往往最好：用規則擋掉簡單的、用 LLM 處理困難的、用規則驗證輸出。** 例子是客服分流：",
-      C(String.raw`def route_ticket(text):
+      C(String.raw`# route_ticket：先用規則處理簡單常見的案件，其餘才交給模型，輸入工單文字，輸出（處理方式，流程名）
+def route_ticket(text):
     t = text.lower()
     if "退款" in t and "訂單" in t:        # 簡單又常見：規則直接處理，免費、快、可預測
         return ("rule", "refund_flow")
     return ("llm", None)                     # 其他才交給模型判斷
 
+# validate_label：驗證模型輸出的標籤，不在允許清單就退成 other，輸入標籤與允許清單，輸出標籤
 def validate_label(label, allowed=("refund", "shipping", "account", "other")):
     # LLM 的輸出一定要驗證：不在允許清單內就退回人工，不要直接相信
     return label if label in allowed else "other"
@@ -81,7 +83,7 @@ print(validate_label("refund"), validate_label("看起來像退貨"))
       "**LLM 功能一定會失敗，問題是失敗時使用者看到什麼。** 失敗的種類比一般 API 多：連線或服務錯誤（可重試）、請求本身有問題（要使用者修改）、輸出被截斷或被拒絕（API 成功但結果不能用），還有最麻煩的一種：**沒有報錯，但答案是錯的**。每種都需要不同的處理。",
 
       "**一、技術性失敗：分類，再給對使用者有意義的訊息。** 不要把 `Error 529: overloaded_error` 直接丟給使用者。依錯誤類型決定「能不能重試」、「該等多久」、「是不是使用者要改什麼」。Anthropic SDK 的例外類別對應 HTTP 狀態碼（429 是 `RateLimitError`、400 是 `BadRequestError`、401 是 `AuthenticationError`、500 以上是 `InternalServerError`，529 是它的子類別 `OverloadedError`）：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 def classify_failure(e):
     """回傳 (動作, 給使用者看的訊息)。順序重要：子類別要先判斷。"""
@@ -106,7 +108,8 @@ def classify_failure(e):
         "**`refusal`：** 模型拒絕回答。顯示中性的說明，不要假裝是系統錯誤，也不要原樣重試同一個請求。官方 stop reasons 文件說明回應裡有 `stop_details` 可讀，並建議在 fallback 模型上重試（細節看官方文件）。",
         "**`end_turn`：** 正常結束。",
       ] },
-      C(String.raw`def render(message):
+      C(String.raw`# render：依 stop_reason 決定怎麼顯示（截斷提示可繼續、拒答提示換說法），輸入回覆，輸出含文字、提示與動作的字典
+def render(message):
     text = "".join(b.text for b in message.content if b.type == "text")
     if message.stop_reason == "max_tokens":
         return {"text": text, "notice": "回答可能不完整", "action": "continue"}
@@ -228,7 +231,7 @@ for x in verify_quotes(items, src):
       ] },
 
       "**怎麼查一個模型的授權：看 Hugging Face 模型卡。** 模型頁的 YAML 標頭有 `license` 欄位；授權比較特殊時是 `license: other`，再搭配 `license_name`、`license_link` 或 repo 裡的 LICENSE 檔。**這個欄位是上傳者自己宣告的，Hugging Face 並不驗證**，所以要點進去讀實際的授權檔。用程式查詢（實際連線的結果）：",
-      C(String.raw`from huggingface_hub import model_info
+      C(String.raw`from huggingface_hub import model_info  # model_info：查詢 Hub 上某模型的資訊
 
 for rid in ["Qwen/Qwen3-8B", "deepseek-ai/DeepSeek-R1", "mistralai/Mistral-7B-v0.3", "meta-llama/Llama-3.1-8B"]:
     i = model_info(rid)

@@ -218,13 +218,15 @@ lengths = {w: len(w) for w in ["a", "bb", "ccc"]}  # {'a': 1, 'bb': 2, 'ccc': 3}
     // ───────────────────────── 函式與參數 ─────────────────────────
     "py-05": [
       "函式把一段程式包起來，取個名字，之後重複使用。用 `def` 定義、`return` 回傳結果。",
-      C(String.raw`def add(a, b):
+      C(String.raw`# add：輸入兩個數，輸出相加的結果
+def add(a, b):
     return a + b
 
 result = add(3, 5)    # 8`),
 
       "**預設參數與關鍵字參數：**",
-      C(String.raw`def greet(name, greeting="你好"):
+      C(String.raw`# greet：輸入名字與問候語（有預設值），輸出問候字串
+def greet(name, greeting="你好"):
     return f"{greeting}，{name}！"
 
 greet("小明")                      # 你好，小明！
@@ -232,14 +234,16 @@ greet("小明", "早安")               # 早安，小明！
 greet(name="小明", greeting="嗨")   # 用名稱指定，順序可以換`),
 
       "**不定數量的參數：** `*args` 收集多餘的位置參數（成為 tuple），`**kwargs` 收集多餘的關鍵字參數（成為 dict）。",
-      C(String.raw`def show(*args, **kwargs):
+      C(String.raw`# show：接收任意個位置參數（args）與關鍵字參數（kwargs）並印出，輸出無
+def show(*args, **kwargs):
     print(args)       # (1, 2, 3)
     print(kwargs)     # {'a': 10, 'b': 20}
 
 show(1, 2, 3, a=10, b=20)`),
 
       "**回傳多個值**其實是回傳一個 tuple：",
-      C(String.raw`def min_max(nums):
+      C(String.raw`# min_max：輸入數字清單，同時回傳最小與最大值（一個 tuple）
+def min_max(nums):
     return min(nums), max(nums)
 
 low, high = min_max([3, 1, 9])    # low=1, high=9`),
@@ -260,10 +264,10 @@ low, high = min_max([3, 1, 9])    # low=1, high=9`),
     "py-06": [
       "一個 `.py` 檔就是一個**模組**，裡面的函式和變數可以被別的檔案 `import` 使用。裡面放很多模組的資料夾稱為**套件**。",
       "**匯入的幾種寫法：**",
-      C(String.raw`import math
+      C(String.raw`import math  # math：數學函式
 print(math.sqrt(16))          # 4.0
 
-from math import sqrt, pi
+from math import sqrt, pi  # sqrt：開平方根；pi：圓周率常數
 print(sqrt(16), pi)
 
 import datetime as dt         # 取別名
@@ -274,15 +278,17 @@ print(dt.date.today())`),
 ├── main.py
 └── utils.py`),
       C(String.raw`# utils.py
+# double：輸入數字，輸出兩倍
 def double(n):
     return n * 2
 
 # main.py
-from utils import double
+from utils import double  # double：示範用的函式（把數字加倍，拿來測試）
 print(double(5))      # 10`),
 
       "**`if __name__ == \"__main__\":`**：這個檔案「直接執行」時才會跑裡面的程式；被別人 import 時不會跑。寫工具模組時很常用：",
       C(String.raw`# utils.py
+# double：輸入數字，輸出兩倍（放在 utils.py，可被其他檔案 import）
 def double(n):
     return n * 2
 
@@ -329,7 +335,8 @@ finally:
     print("不論如何都執行")  # 常用來清理資源`),
 
       "**自己丟出例外：** 用 `raise`，適合檢查參數是否合理：",
-      C(String.raw`def set_age(age):
+      C(String.raw`# set_age：輸入年齡，負數就丟出 ValueError，否則原樣回傳
+def set_age(age):
     if age < 0:
         raise ValueError("年齡不能是負數")
     return age`),
@@ -354,7 +361,7 @@ finally:
     // ───────────────────────── 檔案與路徑、JSON / CSV ─────────────────────────
     "py-08": [
       "**路徑用 `pathlib`**，比字串拼接安全，Windows 和 macOS 都通用：",
-      C(String.raw`from pathlib import Path
+      C(String.raw`from pathlib import Path  # Path：處理檔案路徑的物件
 
 p = Path("data") / "notes.txt"   # 用 / 組合路徑
 p.exists()                       # 是否存在
@@ -385,7 +392,7 @@ text = Path("notes.txt").read_text(encoding="utf-8")
 Path("out.txt").write_text("內容", encoding="utf-8")`),
 
       "**JSON：** 跟 Python 的 dict / list 幾乎一一對應，呼叫 API 與存設定時天天用到：",
-      C(String.raw`import json
+      C(String.raw`import json  # json：讀寫 JSON
 
 data = {"name": "小明", "scores": [90, 85]}
 
@@ -402,7 +409,7 @@ s = json.dumps(data, ensure_ascii=False)   # dict → 字串
 d = json.loads(s)                           # 字串 → dict`),
 
       "**CSV：** 用 `DictReader` 可以直接用欄位名稱取值：",
-      C(String.raw`import csv
+      C(String.raw`import csv  # csv：讀寫 CSV
 
 with open("people.csv", encoding="utf-8", newline="") as f:
     for row in csv.DictReader(f):

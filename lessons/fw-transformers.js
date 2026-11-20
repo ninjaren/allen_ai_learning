@@ -529,8 +529,8 @@ model = AutoModelForCausalLM.from_pretrained(
       C(String.raw`# Trainer 微調的完整骨架（改寫自官方 Fine-tuning 頁，未執行）
 from datasets import load_dataset  # load_dataset：載入 Hugging Face 資料集
 from transformers import (
-    AutoTokenizer, AutoModelForCausalLM,
-    DataCollatorForLanguageModeling, TrainingArguments, Trainer,
+    AutoTokenizer, AutoModelForCausalLM,  # AutoTokenizer：依名稱載入 tokenizer；AutoModelForCausalLM：依名稱載入文字生成模型
+    DataCollatorForLanguageModeling, TrainingArguments, Trainer,  # DataCollatorForLanguageModeling：把一批資料補齊並建立語言模型的標籤；TrainingArguments：訓練參數設定；Trainer：封裝訓練迴圈
 )
 
 model_name = "Qwen/Qwen3-0.6B"                 # 官方範例的小模型

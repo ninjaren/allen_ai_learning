@@ -27,8 +27,8 @@ window.LESSON = window.LESSON || {};
 }`),
       "**自己寫程式呼叫指令（呼叫端）：** 重點是『不給模型一個完整的 shell』，而是只開放幾個你寫好、可審查的腳本，並限制時間與輸出長度。下面是我實測過的 Python 版本，只允許兩支 PowerShell 腳本：",
       C(String.raw`# runner.py
-import json
-import subprocess
+import json  # json：讀寫 JSON
+import subprocess  # subprocess：執行外部程式
 
 ALLOWED = {"echo-json", "list-logs"}
 
@@ -145,6 +145,7 @@ param(
 $ErrorActionPreference = "Stop"
 if (-not $LogFile) { $LogFile = Join-Path $PSScriptRoot "archive.log" }
 
+# Write-Log：寫一行帶時間與等級的紀錄到檔案並印到畫面，輸入等級與訊息，輸出無
 function Write-Log([string]$Level, [string]$Message) {
     $line = "{0} [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
     Add-Content -Path $LogFile -Value $line -Encoding UTF8 -WhatIf:$false

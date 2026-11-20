@@ -44,7 +44,7 @@ print(pack_context(blocks, 700, approx))
       "（用字元數除以 2 粗估 token，只是示範打包的邏輯。）",
 
       "**量測：Token counting API。** 不用猜，直接問 API 這個請求會用多少輸入 token。官方文件說明它**免費**，有自己的每分鐘請求上限（Start 5,000、Build 10,000、Scale 20,000 RPM），與建立訊息的上限互相獨立；數字是**估計值**，與實際可能有小差異。支援系統提示、工具、圖片和 PDF（要用 base64）；**不支援**網址或檔案來源，也不支援大多數 server tools：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 client = anthropic.Anthropic()
 
 count = client.messages.count_tokens(
@@ -56,7 +56,8 @@ print(count.input_tokens)                       # 用假的 API 回應驗證過�
       "**重要：不同模型的數字不能互相套用。** 官方文件說明 Claude 4.7 以後的模型用新的 tokenizer，同樣的文字約多出 30% 的 token（依內容而定）。換模型時，要用新模型重新數。",
 
       "**二、裁切：清掉用過的東西。** 在 agent 迴圈裡，**舊的工具結果通常最佔空間**（整個檔案內容、一長串搜尋結果），而且用過之後價值很低。官方文章說清除已使用過的工具結果是「最輕量的壓縮」。自己做的版本（保留最近 N 個，其餘換成佔位文字，`tool_use` 與 `tool_result` 的配對結構不變）：",
-      C(String.raw`def clear_old_tool_results(messages, keep=2, placeholder="[已清除舊的工具結果以節省上下文]"):
+      C(String.raw`# clear_old_tool_results：把較舊的工具結果換成佔位文字以省上下文，輸入訊息清單與保留數量，輸出被清掉的個數（直接改原清單）
+def clear_old_tool_results(messages, keep=2, placeholder="[已清除舊的工具結果以節省上下文]"):
     positions = [(i, j) for i, m in enumerate(messages)
                  if m["role"] == "user" and isinstance(m["content"], list)
                  for j, b in enumerate(m["content"])
@@ -144,9 +145,11 @@ print([len(m["content"][0]["content"]) for m in msgs if m["role"] == "user"])
         "**分類器路由：** 先用小模型（或規則）判斷難度或類型，再轉給對應的模型。Agent 階段「設計模式」的 routing 就是這個。分類本身要經過評測",
         "**Cascade（逐級升級）：** 先用便宜的模型回答，用**檢查**判斷答案可不可信，不行再升級到較強的模型。適合「大多數情況簡單、少數情況困難」，而且你有可靠的檢查方式（格式驗證、單元測試、答案可被驗證）",
       ] },
-      C(String.raw`def get_text(m):
+      C(String.raw`# get_text：把模型回覆的文字區塊接成字串，輸入回覆，輸出文字
+def get_text(m):
     return "".join(b.text for b in m.content if b.type == "text")
 
+# cascade：先用小模型回答，檢查沒過再升級到大模型，輸入問題與檢查函式，輸出（用了哪個模型，答案）
 def cascade(question, check, small="claude-haiku-5-5", big="claude-opus-5-5"):
     r = client.messages.create(model=small, max_tokens=200,
                                messages=[{"role": "user", "content": question}])
@@ -180,13 +183,14 @@ print(cascade("答案？", lambda a: a.strip().isdigit()))   # 小模型回「42
 # 400 invalid_request    → anthropic.BadRequestError
 # 401 authentication     → anthropic.AuthenticationError`),
       "**Fallback 的程式：** 依序嘗試模型清單，只對「值得重試」的錯誤退下一個；其他錯誤直接丟出去。為了讓退得快，主要的呼叫可以把 `max_retries` 調小（甚至 0），不然 SDK 自己先重試兩次才輪到你的 fallback：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic(max_retries=0)          # 讓 fallback 自己控制，不要先在 SDK 裡等
 
 RETRYABLE = (anthropic.RateLimitError, anthropic.InternalServerError,   # 含 OverloadedError
              anthropic.APIConnectionError, anthropic.APITimeoutError)
 
+# call_with_fallback：依序嘗試多個模型，遇到可重試的錯誤就換下一個，輸入模型清單與訊息，輸出（成功的模型，回覆）；全失敗就丟出最後的錯
 def call_with_fallback(models, messages, **kwargs):
     last = None
     for model in models:
@@ -214,13 +218,15 @@ model, r = call_with_fallback(["claude-sonnet-5-5", "claude-haiku-5-5"],
       ] },
 
       "**斷路器（circuit breaker）：** 如果主要模型連續失敗，每個請求還是先打它、等逾時再 fallback，使用者會一直白等。斷路器的概念：連續失敗 N 次後「斷開」，一段時間內直接走備援，冷卻後再放一個請求試探：",
-      C(String.raw`import time
+      C(String.raw`import time  # time：計時與暫停
 
 class Breaker:
+    # __init__：斷路器，記下失敗幾次就斷開、冷卻多久與時間函式
     def __init__(self, fails=3, cooldown=30, now=time.monotonic):
         self.fails, self.cooldown, self.now = fails, cooldown, now
         self.count, self.opened = 0, None
 
+    # allow：現在可不可以呼叫主要模型，輸入無，輸出 True 或 False；冷卻過了進入半開狀態
     def allow(self):                                   # 現在可以打主要模型嗎？
         if self.opened is None:
             return True
@@ -229,9 +235,11 @@ class Breaker:
             return True
         return False
 
+    # ok：呼叫成功時把失敗計數歸零並關閉斷路
     def ok(self):
         self.count, self.opened = 0, None
 
+    # bad：呼叫失敗時計數加一，累積到上限就斷開並記下時間
     def bad(self):
         self.count += 1
         if self.count >= self.fails:
@@ -287,7 +295,7 @@ print(next(b.text for b in message.content if b.type == "text"))`),
       "**槓桿三：縮短輸入、用 prompt caching。** 輸入越短越快（上一課的選取與裁切）。重複使用的長前綴（系統提示、文件、工具定義）用 prompt caching（見 LLM API 階段），可以降低成本，長輸入的處理時間通常也會縮短。",
 
       "**槓桿四：串流（streaming）。** 串流不會讓總時間變短，但**使用者幾乎立刻就看到第一個字**，感覺快很多。實際量一下 TTFT 與總時間（用本機一個故意慢的假伺服器：首字前等 0.3 秒，之後每個字間隔 0.2 秒，所以數字只是示範，不是真實 API 的速度）：",
-      C(String.raw`import time
+      C(String.raw`import time  # time：計時與暫停
 
 t0 = time.perf_counter()
 first = None
@@ -301,8 +309,9 @@ print(f"TTFT {first:.2f}s, 總共 {total:.2f}s")
 # TTFT 0.34s, 總共 1.15s      使用者 0.34 秒就看到內容，不用等 1.15 秒`),
 
       "**槓桿五：把獨立的呼叫同時送出（並行）。** 這是最容易、效果最大的優化之一：如果有 8 個互不依賴的呼叫，不要一個接一個等。同一台機器上，用本機的假伺服器（每次呼叫固定等 0.3 秒）量了三種寫法：",
-      C(String.raw`import concurrent.futures as cf
+      C(String.raw`import concurrent.futures as cf  # concurrent.futures：用執行緒池並行執行函式
 
+# one：同步呼叫一次模型，輸入編號，輸出回覆文字（示範同步版會一個個排隊）
 def one(i):                                               # 同步呼叫，一次 0.3 秒（假伺服器）
     r = client.messages.create(model="claude-haiku-5-5", max_tokens=10,
                                messages=[{"role": "user", "content": str(i)}])
@@ -316,15 +325,17 @@ with cf.ThreadPoolExecutor(max_workers=8) as ex:
     results = list(ex.map(one, range(8)))
 
 # 3. asyncio：用 Semaphore 控制同時數量
-import asyncio
+import asyncio  # asyncio：非同步執行與等待
 aclient = anthropic.AsyncAnthropic()
 
+# aone：非同步呼叫一次模型，先取得信號量限制同時數量，輸入編號與信號量，輸出回覆文字
 async def aone(i, sem):
     async with sem:                                       # 最多同時 limit 個
         r = await aclient.messages.create(model="claude-haiku-5-5", max_tokens=10,
                                           messages=[{"role": "user", "content": str(i)}])
         return get_text(r)
 
+# run：同時發出 8 個請求並等全部完成，輸入同時上限 limit，輸出所有回覆
 async def run(limit):
     sem = asyncio.Semaphore(limit)
     return await asyncio.gather(*[aone(i, sem) for i in range(8)])
@@ -343,7 +354,7 @@ async def run(limit):
       "**槓桿七：改善『感覺』的速度。** 即使實際沒變快：立刻顯示處理中的狀態、先顯示部分結果（串流、先給摘要再補細節）、預先載入可預期的內容、背景工作改為非同步並通知使用者，而不是讓畫面卡住。",
 
       "**怎麼量：看分位數，不只平均。** 平均會被少數很慢的請求拉高，也會掩蓋它們。看 p50（中位數）和 p95（95% 的請求比這個快）：",
-      C(String.raw`import statistics
+      C(String.raw`import statistics  # statistics：基本統計函式（平均、標準差）
 
 latencies = [0.8, 0.9, 1.0, 1.1, 1.2, 1.0, 0.9, 1.1, 6.5, 1.0]      # 單位：秒，其中有一個 6.5 秒的慢請求
 print("平均", round(statistics.mean(latencies), 2))                  # 平均被拉高
@@ -412,10 +423,11 @@ PROMPT = """<documents>
       ] },
 
       "**切段：依 token 數、保留一些重疊**（讓邊界附近的句子不會被切斷後兩邊都看不懂）。注意：下面用 `tiktoken`（OpenAI 的 tokenizer）只是**近似**，Claude 的 tokenizer 不同，數字會有差異，所以要留餘裕，或改用 `count_tokens` 驗證：",
-      C(String.raw`import tiktoken
+      C(String.raw`import tiktoken  # tiktoken：計算文字有幾個 token
 
 enc = tiktoken.get_encoding("cl100k_base")                # OpenAI 的 tokenizer：對 Claude 只是近似
 
+# chunk_by_tokens：依 token 數切段並保留重疊，輸入全文、每段 token 上限與重疊數，輸出片段清單
 def chunk_by_tokens(text, max_tokens=50, overlap=5):
     ids = enc.encode(text)
     step = max_tokens - overlap
@@ -428,8 +440,9 @@ print(len(chunks), len(enc.encode(doc)))
       "**有個陷阱：** 按 token 數硬切，可能切在句子或詞的中間（上面的 `decode` 對中文常常切到半個字）。正式使用要先依段落、標題、句號切，再把小的合併到接近上限（RAG 階段的遞迴切分）。",
 
       "**Map-reduce 的骨架**（map 步驟可並行，用上一課的執行緒池，並控制同時數量）：",
-      C(String.raw`import concurrent.futures as cf
+      C(String.raw`import concurrent.futures as cf  # concurrent.futures：用執行緒池並行執行函式
 
+# map_reduce：各段並行摘要再合併，輸入片段、摘要函式、合併函式與執行緒數，輸出合併後結果
 def map_reduce(chunks, summarize, combine, max_workers=4):
     with cf.ThreadPoolExecutor(max_workers) as ex:
         partial = list(ex.map(summarize, chunks))         # map：各段獨立處理，結果依輸入順序
@@ -485,6 +498,7 @@ PRICES = {
     "claude-opus-5-5":   (4.0, 20.0, 0.05),
 }
 
+# cost_of：依單價與各種 token 用量（含快取寫入與讀取）算花費，輸入模型名與用量，輸出美元金額
 def cost_of(model, usage):
     pin, pout, read_ratio = PRICES[model]
     return (usage["input"] * pin
@@ -499,13 +513,14 @@ print(cost_of("claude-opus-5-5", u(90000, 2000)))                    # 0.4     �
 # 快取讓這個請求便宜了約四倍`),
 
       "**第二步：帳本。** 每次呼叫存一筆：時間、**功能名稱（哪個功能呼叫的）**、使用者、模型、各種 token、算出的金額。用 SQLite 就夠（SQL 階段學過）。**『功能』欄位是關鍵：** 沒有它，你只知道總共花多少，不知道是哪個功能花的：",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 
 db = sqlite3.connect("usage.db")
 db.execute("""create table if not exists calls(
     ts text, feature text, user text, model text,
     input int, output int, cache_read int, cache_write int, usd real)""")
 
+# record：把一次呼叫的時間、功能、使用者、模型、用量與花費寫進資料庫，輸入這些欄位，輸出無
 def record(ts, feature, user, model, usage):
     db.execute("insert into calls values(?,?,?,?,?,?,?,?,?)",
                (ts, feature, user, model, usage["input"], usage["output"],
@@ -519,7 +534,7 @@ for row in db.execute("select feature, round(sum(usd), 4) from calls group by fe
 # ('chat', 1.136)      一眼看出錢花在 summarize`),
 
       "**第三步：偵測異常。** 簡單有效的做法：拿每日花費和**過去的中位數**比，超過數倍就告警。中位數比平均不容易被過去的突波影響：",
-      C(String.raw`import statistics
+      C(String.raw`import statistics  # statistics：基本統計函式（平均、標準差）
 
 daily = [r[1] for r in db.execute("select ts, sum(usd) from calls group by ts order by ts")]
 print([round(x, 3) for x in daily])
@@ -538,13 +553,16 @@ print(round(today / baseline, 1), today > 3 * baseline)
         "**整個帳號：** 在 Console 設定花費上限（下面說明）",
       ] },
       C(String.raw`class Budget:
+    # __init__：預算控管，記下每日上限，已花費從 0 開始
     def __init__(self, daily_usd):
         self.limit, self.spent = daily_usd, 0.0
 
+    # check：呼叫前用估計花費檢查，超過每日上限就丟出 RuntimeError
     def check(self, estimated):                       # 呼叫前：用估計值檢查
         if self.spent + estimated > self.limit:
             raise RuntimeError(f"超過每日預算 {self.limit}")
 
+    # add：呼叫後把實際花費計入已花費
     def add(self, actual):                            # 呼叫後：用實際的 usage 計入
         self.spent += actual
 

@@ -109,7 +109,7 @@ print(response.content_blocks)`),
         "**batch()：****在用戶端**平行執行多個獨立請求，這和供應商自己的批次 API（較便宜、非即時）是兩回事；可用 max_concurrency 限制同時數量。batch_as_completed() 會先完成先回傳，順序可能亂。",
       ] },
       "**提示詞模板（langchain-core 的 prompts）：** 把『固定的提示詞結構』與『每次不同的變數』分開。最常用的是 ChatPromptTemplate；有對話歷史要放進去時用 MessagesPlaceholder。模板本身也是 Runnable（下一課會講），用 invoke 傳入字典填入變數。",
-      C(String.raw`from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+      C(String.raw`from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder  # ChatPromptTemplate：聊天提示詞模板；MessagesPlaceholder：提示詞中預留給歷史訊息的位置
 
 # from_messages：用（角色, 模板字串）列出對話結構；大括號是變數
 prompt = ChatPromptTemplate.from_messages([
@@ -153,7 +153,7 @@ response = model.invoke(value)`),
         "**所有方法都接受可選的 config 參數：**用來帶追蹤、標籤、中繼資料、callbacks。",
       ] },
       "**關鍵好處：用 | 組出來的鏈，自動擁有同步、非同步、批次、串流的能力。** 你不用為每個鏈各寫一次。",
-      C(String.raw`from langchain_core.runnables import RunnableLambda
+      C(String.raw`from langchain_core.runnables import RunnableLambda  # RunnableLambda：把普通函式包成可串接的 Runnable
 
 # RunnableLambda：把普通函式包成 Runnable
 add_one = RunnableLambda(lambda x: x + 1)
@@ -166,7 +166,7 @@ sequence.invoke(1)           # 先 +1 得 2，再 *2 得 4
 sequence.batch([1, 2, 3])    # 一次處理多個輸入，得 [4, 6, 8]
 # （官方參考文件的 docstring 範例就是這個）`),
       "**經典的 LLM 管線：提示詞 | 模型 | 輸出解析器。** 每一段的輸入輸出型別剛好接得起來：字典 -> 填好的訊息 -> AIMessage -> 字串。",
-      C(String.raw`from langchain_core.prompts import ChatPromptTemplate
+      C(String.raw`from langchain_core.prompts import ChatPromptTemplate  # ChatPromptTemplate：聊天提示詞模板
 from langchain_core.output_parsers import StrOutputParser  # StrOutputParser：把模型輸出轉成純字串
 
 prompt = ChatPromptTemplate.from_messages([
@@ -181,7 +181,7 @@ result = chain.invoke({"text": "向量資料庫適合語意搜尋"})   # 輸入�
 for piece in chain.stream({"text": "謝謝你的協助"}):        # 同一條鏈直接就能串流
     print(piece, end="")`),
       "**並行：字典字面值就是 RunnableParallel。** 在管線裡放一個字典，每個值是一個 Runnable，它們會**拿到同樣的輸入、同時執行**，結果是以鍵名組成的字典。典型用途：同時取得『檢索到的文件』與『原始問題』，再一起交給提示詞。",
-      C(String.raw`from langchain_core.runnables import RunnableLambda
+      C(String.raw`from langchain_core.runnables import RunnableLambda  # RunnableLambda：把普通函式包成可串接的 Runnable
 
 # 官方 docstring 的範例：+1 之後，同時做 *2 與 *5
 sequence = RunnableLambda(lambda x: x + 1) | {
@@ -220,7 +220,7 @@ sequence.invoke(1)   # {"mul_2": 4, "mul_5": 10}
       "**結構化輸出：讓模型回傳『符合你定義的結構』而不是自由文字。** 這是把 LLM 接進程式的關鍵（抽取、分類、路由都靠它）。本分支前面的 [[fw-01]]（pydantic）講過怎麼定義結構與驗證，這一課看 LangChain 怎麼把它接上模型。",
       "**兩個層級（官方）：** 直接對模型用 with_structured_output；對 Agent 用 create_agent 的 response_format 參數。",
       "**一、模型層：with_structured_output。** 傳入一個結構（schema），回傳一個新的模型物件，呼叫後直接得到結構化結果。schema 可以是 Pydantic 模型、TypedDict、或 JSON Schema。官方列出的方法有三種：json_schema（供應商原生的結構化輸出）、function_calling（靠工具呼叫模擬）、json_mode。加上 include_raw=True 會同時回傳原始的 AIMessage（方便看 token 用量或除錯）。模型拒絕回答時會丟出 ModelRefusalError。",
-      C(String.raw`from pydantic import BaseModel, Field
+      C(String.raw`from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
 # 用 Pydantic 定義想要的結構；欄位的描述會被送給模型，等於在教它每個欄位的意思
 class TicketInfo(BaseModel):
@@ -242,7 +242,7 @@ print(result.category, result.urgent)`),
         ["None", "不要求結構化輸出", ""],
       ] } },
       "**schema 型別與回傳型別（官方）：** Pydantic BaseModel 回傳驗證過的 Pydantic 實例；dataclass 與 TypedDict 回傳 dict；JSON Schema 字典回傳 dict，而且**必須有頂層的 title 與 description，並且要用明確的 strategy 包起來**（不會自動偵測）。",
-      C(String.raw`from langchain.agents import create_agent
+      C(String.raw`from langchain.agents import create_agent  # create_agent：LangChain 建立代理的入口
 from langchain.agents.structured_output import ToolStrategy   # 匯入路徑請以你安裝的版本文件為準
 
 # 直接給 Pydantic 型別：LangChain 依模型能力自動選用 ProviderStrategy 或 ToolStrategy
@@ -358,7 +358,7 @@ def my_retriever(query: str) -> List[Document]:
       { note: "**白話版：** 工具是『模型自己不會、但可以請你的程式代為執行的功能』，例如查天氣、查資料庫、算數。Agent 是『會自己決定要不要用工具、用哪個、用幾次，直到把問題解決』的模型流程。就像請一個助理：他會判斷這題要先查資料，還是直接回答。" },
       "**Agent = 模型在迴圈裡反覆呼叫工具，直到任務完成。** 這是官方 agents 頁的定義。迴圈做的事：把訊息給模型、模型決定要不要用工具、你執行工具並把結果還給模型、再呼叫模型，直到模型不再要求工具為止。觀念與原生寫法見 [[ai-07]]、[[ai-10]]；這一課看 LangChain 怎麼包裝。",
       "**工具：用 @tool 裝飾一個函式（官方 tools 頁）。** 規則很簡單但很重要：**docstring 就是工具的說明、型別提示就是輸入的 schema，所以兩者都是必要的**。模型看到的只有名稱、說明與參數結構，說明寫不清楚，模型就不知道何時該用。",
-      C(String.raw`from langchain.tools import tool
+      C(String.raw`from langchain.tools import tool  # tool：把函式標記成模型可呼叫的工具
 
 # search_orders：工具函式。輸入客戶編號與筆數上限；回傳訂單文字（示意，實際應查資料庫）。docstring 與型別提示會成為給模型看的工具說明
 @tool
@@ -388,7 +388,7 @@ def get_weather(city: str, unit: str = "celsius") -> str:
       ] },
       "**模型層的工具呼叫（models 頁）：** model.bind_tools([工具…]) 讓模型能『請求』呼叫工具；回應的 tool_calls 屬性列出它想呼叫哪些。**模型自己不會執行工具**，執行與回傳 ToolMessage 是你的程式（或 Agent 迴圈）的工作。tool_choice 可以強制使用工具，parallel_tool_calls=False 可以在支援的供應商上關閉平行工具呼叫。",
       "**Agent 層：create_agent 把上面的迴圈包好。**",
-      C(String.raw`from langchain.agents import create_agent
+      C(String.raw`from langchain.agents import create_agent  # create_agent：LangChain 建立代理的入口
 
 agent = create_agent(
     model="anthropic:claude-sonnet-5-5",           # 可以是「供應商:模型」字串，或已建立的模型物件
@@ -406,7 +406,7 @@ final_message = result["messages"][-1]
 print(final_message.content_blocks)`),
       "**Agent 的狀態（官方）：** 狀態是 AgentState 這個字典型別，其中 messages 欄位是**只增不減**的（附加式）。invoke 傳入的是對底層 LangGraph 狀態的更新。要加自己的欄位，繼承 AgentState 並用 state_schema= 傳入。要讓對話跨多次呼叫保留，需要 checkpointer（持久化機制），並在 config 傳 thread_id；每次呼叫專屬的資料（例如使用者 ID）用 context= 傳入。",
       "**Middleware：Agent 的主要客製化點（官方 v1 發行說明與 middleware 頁）。** 它在迴圈的各個位置加上掛鉤：before_agent、before_model、wrap_model_call、wrap_tool_call、after_model、after_agent。官方列出的現成項目包括：SummarizationMiddleware（對話太長時摘要）、PIIMiddleware（個資處理）、HumanInTheLoopMiddleware（高風險動作需人工核准）、ModelRetryMiddleware（模型失敗重試）；另有工具重試、模型備援、模型呼叫次數上限等。用途分類：執行環境、上下文管理、規劃與委派、容錯、護欄、引導。",
-      C(String.raw`from langchain.agents.middleware import SummarizationMiddleware, HumanInTheLoopMiddleware
+      C(String.raw`from langchain.agents.middleware import SummarizationMiddleware, HumanInTheLoopMiddleware  # SummarizationMiddleware：對話太長時自動摘要的中介層；HumanInTheLoopMiddleware：高風險工具執行前先請人確認的中介層
 
 # middleware 是『可疊加的功能零件』，每個負責一件事；順序由你決定
 agent = create_agent(

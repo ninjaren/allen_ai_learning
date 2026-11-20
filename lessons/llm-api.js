@@ -13,7 +13,7 @@ window.LESSON = window.LESSON || {};
 
       "**Anthropic（Claude）：**",
       C(String.raw`pip install anthropic`),
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()            # 自動讀取環境變數 ANTHROPIC_API_KEY
 
@@ -32,7 +32,7 @@ print(message.usage.input_tokens, message.usage.output_tokens)`),
 
       "**OpenAI：**",
       C(String.raw`pip install openai`),
-      C(String.raw`from openai import OpenAI
+      C(String.raw`from openai import OpenAI  # OpenAI：OpenAI 的用戶端
 
 client = OpenAI()                         # 自動讀取環境變數 OPENAI_API_KEY
 
@@ -57,7 +57,7 @@ print(resp.usage.prompt_tokens, resp.usage.completion_tokens)`),
       ] },
 
       "**一個常用的技巧：用同一套程式接不同服務。** 很多服務（包含本機的 Ollama）提供「相容 OpenAI 的介面」，只要改 `base_url` 就能用 OpenAI 的 SDK 呼叫：",
-      C(String.raw`from openai import OpenAI
+      C(String.raw`from openai import OpenAI  # OpenAI：OpenAI 的用戶端
 
 # 呼叫本機的 Ollama（Ollama 預設在 11434 埠，金鑰隨便填）
 local = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")`),
@@ -94,8 +94,8 @@ local = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")`),
       ] },
 
       "**也可以不用 SDK，直接送 HTTP：**",
-      C(String.raw`import os
-import httpx
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
+import httpx  # httpx：HTTP 用戶端（支援同步與非同步）
 
 r = httpx.post(
     "https://api.anthropic.com/v1/messages",
@@ -123,6 +123,7 @@ message.content        # 區塊清單，例如 [thinking 區塊, text 區塊]
 message.stop_reason    # 為什麼停止："end_turn"（說完了）、"max_tokens"（被截斷）、"stop_sequence"…
 message.usage          # input_tokens、output_tokens 等用量
 
+# get_text：把模型回覆裡的文字區塊接成一個字串，輸入回覆物件，輸出文字
 def get_text(message):
     return "".join(b.text for b in message.content if b.type == "text")`),
 
@@ -159,9 +160,10 @@ def get_text(message):
     "api-03": [
       "API **沒有記憶**：每次呼叫都要把需要的歷史一起送過去。「多輪對話」就是你的程式替它管理這份歷史。基本做法是兩個動作：**使用者說話就加進去，模型回答也加進去。**",
       "下面是一個可以直接使用的小類別，包含「歷史太長就從最舊的丟掉」。它不用額外呼叫 API 來算長度，而是利用上一次回應裡的 `usage.input_tokens`（等於目前整份歷史的大小）：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 class Chat:
+    # __init__：建立聊天物件，記下模型、系統提示與輸入 token 上限，並準備空的對話歷史
     def __init__(self, model, system, max_input_tokens=8000):
         self.client = anthropic.Anthropic()
         self.model = model
@@ -170,12 +172,14 @@ class Chat:
         self.history = []                 # [{"role": ..., "content": ...}, ...]
         self.last_input_tokens = 0        # 上一次送出的輸入大小
 
+    # _trim：歷史太長時一次丟掉最舊的一問一答，保證開頭仍是 user，輸入無，輸出無
     def _trim(self):
         # 太長就一次丟掉最舊的「一問一答」，保證開頭仍是 user
         while len(self.history) > 2 and self.last_input_tokens > self.max_input_tokens:
             self.history = self.history[2:]
             self.last_input_tokens = int(self.last_input_tokens * 0.8)   # 粗估，下次呼叫會被實際值修正
 
+    # ask：加入使用者訊息、呼叫模型、記下回答與 token 用量，輸入文字，輸出回答；失敗時把剛加的訊息拿掉
     def ask(self, text):
         self._trim()
         self.history.append({"role": "user", "content": text})
@@ -197,17 +201,20 @@ print(chat.ask("我叫小明"))
 print(chat.ask("我剛剛說我叫什麼？"))     # 因為帶了歷史，答得出來`),
 
       "**存檔與還原：** 重新啟動程式後對話還在。小量資料用 JSON 檔就夠；多人或大量用資料庫（見 SQL 那一課的「儲存對話與記憶」）：",
-      C(String.raw`import json
-from pathlib import Path
+      C(String.raw`import json  # json：讀寫 JSON
+from pathlib import Path  # Path：處理檔案路徑的物件
 
+# save：把對話歷史寫成 JSON 檔，輸入聊天物件與路徑，輸出無
 def save(chat, path):
     Path(path).write_text(json.dumps(chat.history, ensure_ascii=False, indent=2), encoding="utf-8")
 
+# load：從 JSON 檔讀回對話歷史，輸入聊天物件與路徑，輸出無
 def load(chat, path):
     chat.history = json.loads(Path(path).read_text(encoding="utf-8"))`),
 
       "**比「直接丟掉」更好的做法：摘要。** 舊的對話請模型濃縮成一段，放進 `system`，這樣訊息的角色順序不會被打亂：",
-      C(String.raw`def summarize(client, model, old_messages):
+      C(String.raw`# summarize：請模型把舊對話濃縮成 200 字內的摘要，輸入用戶端、模型與舊訊息，輸出摘要文字
+def summarize(client, model, old_messages):
     text = "\n".join(f"{m['role']}：{m['content']}" for m in old_messages)
     msg = client.messages.create(
         model=model, max_tokens=500,
@@ -237,7 +244,7 @@ chat.history = chat.history[-6:]`),
       "**Streaming（串流）**：模型邊產生、你邊收到，不用等整段回答完成。使用者幾乎立刻就看到第一個字，體感快很多；長回答也不容易因為等太久而逾時（官方建議輸出很長的請求一律用串流）。",
 
       "**Anthropic 的基本寫法：**",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 client = anthropic.Anthropic()
 
 with client.messages.stream(
@@ -254,9 +261,10 @@ print(final.usage.output_tokens, final.stop_reason)`),
       "如果你只是因為輸出很長而需要串流、不需要逐字處理，可以直接 `with ... as stream: message = stream.get_final_message()`，由 SDK 幫你收齊。",
 
       "**非同步版本**（搭配 FastAPI 等非同步框架）：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 client = anthropic.AsyncAnthropic()
 
+# stream_answer：非同步產生器，向模型要串流回答，每收到一小段文字就交出去，輸入問題，輸出文字片段
 async def stream_answer(question):
     async with client.messages.stream(
         model="claude-sonnet-5-5",
@@ -267,15 +275,16 @@ async def stream_answer(question):
             yield text`),
 
       "**接成網頁：FastAPI 把串流轉送給前端**",
-      C(String.raw`from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+      C(String.raw`from fastapi import FastAPI  # FastAPI：建立應用程式物件
+from fastapi.responses import StreamingResponse  # StreamingResponse：分段串流回應
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 app = FastAPI()
 
 class Question(BaseModel):
     text: str
 
+# chat：接收前端的問題，把 stream_answer 包成串流回應回傳，輸入 Question，輸出 StreamingResponse
 @app.post("/chat")
 async def chat(q: Question):
     return StreamingResponse(stream_answer(q.text), media_type="text/plain; charset=utf-8")`),
@@ -341,12 +350,13 @@ for chunk in stream:
 answer = client.with_options(max_retries=0, timeout=10.0).messages.create(...)`),
 
       "**「指數退避加隨機」是重試的標準做法：** 每次失敗等待的時間加倍（1 秒、2 秒、4 秒、8 秒…），並加上隨機，避免很多用戶端同時重試造成「驚群」：",
-      C(String.raw`import random, time
-import anthropic
+      C(String.raw`import random, time  # random：亂數；time：計時與暫停
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 RETRYABLE = (anthropic.RateLimitError, anthropic.InternalServerError,
              anthropic.OverloadedError, anthropic.APIConnectionError, anthropic.APITimeoutError)
 
+# call_with_retry：可重試的錯誤用指數退避加隨機等待後重試，輸入要執行的函式與次數、等待上限，輸出函式結果；次數用完就丟出錯誤
 def call_with_retry(fn, retries=4, base=1.0, cap=30.0):
     for attempt in range(retries + 1):
         try:
@@ -408,6 +418,7 @@ except anthropic.APIStatusError as e:
 PRICES = {"input": 1.0, "output": 5.0, "cache_write": 1.25, "cache_read": 0.1}
 # cache_write / cache_read 是相對於 input 單價的「倍率」（見 Prompt caching 那一課）
 
+# estimate_cost：依用量與單價（含快取寫入與讀取）估算這次花費，輸入 usage 與單價表，輸出美元金額
 def estimate_cost(usage, prices=PRICES):
     cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
     cache_read  = getattr(usage, "cache_read_input_tokens", 0) or 0
@@ -535,7 +546,7 @@ print("未快取的輸入：", u.input_tokens)                # 斷點之後、�
       ] },
 
       "**建立批次：**",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 client = anthropic.Anthropic()
 
 articles = {"a1": "今天天氣很好……", "a2": "公司宣布新產品……", "a3": "這部電影很無聊……"}
@@ -556,7 +567,7 @@ batch = client.messages.batches.create(
 print(batch.id, batch.processing_status)        # msgbatch_...  in_progress`),
 
       "**等待完成**（輪詢狀態）：",
-      C(String.raw`import time
+      C(String.raw`import time  # time：計時與暫停
 
 while True:
     batch = client.messages.batches.retrieve(batch.id)
@@ -606,12 +617,13 @@ print(results["a1"])`),
       "現代的模型除了文字，也能看**圖片**和 **PDF**。做法是把 `content` 從字串改成「區塊清單」，圖片或文件是一種區塊，問題文字是另一種。",
 
       "**圖片（base64）：** 讀取檔案、轉成 base64 字串、告訴它格式。支援 JPEG、PNG、GIF、WebP：",
-      C(String.raw`import base64
-from pathlib import Path
-import anthropic
+      C(String.raw`import base64  # base64：base64 編碼與解碼
+from pathlib import Path  # Path：處理檔案路徑的物件
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()
 
+# image_block：讀圖檔並轉成 base64，輸入檔案路徑，輸出可放進 content 的圖片區塊
 def image_block(path):
     media_types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
                    ".gif": "image/gif", ".webp": "image/webp"}
@@ -636,7 +648,8 @@ print("".join(b.text for b in message.content if b.type == "text"))`),
       C(String.raw`{"type": "image", "source": {"type": "url", "url": "https://example.com/photo.jpg"}}`),
 
       "**PDF：** 用 `document` 區塊，格式是 `application/pdf`：",
-      C(String.raw`def pdf_block(path):
+      C(String.raw`# pdf_block：讀 PDF 並轉成 base64，輸入檔案路徑，輸出可放進 content 的文件區塊
+def pdf_block(path):
     data = base64.standard_b64encode(Path(path).read_bytes()).decode("utf-8")
     return {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": data}}
 

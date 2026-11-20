@@ -123,12 +123,12 @@ pydantic`),
       { note: "**白話版：** 影片就是很多張照片（幀）一張接一張。這一課學三件事：怎麼從攝影機網址把一幀一幀讀進來、怎麼把它錄成檔案方便反覆實驗、怎麼劃出『只看這塊區域』。你會碰到真實串流的一些麻煩：幀率會變、伺服器會中途斷線，不是教科書上那種乾乾淨淨的影片。" },
       "**步驟一：讀 CCTV 清單，找到攝影機。** 先寫 traffic/cameras.py：",
       C(String.raw`"""高速公路局公開的 CCTV 清單：每支攝影機的編號、路名、方向、里程與影像網址。"""
-import time
-import xml.etree.ElementTree as ET
-from dataclasses import dataclass
-from pathlib import Path
+import time  # time：計時與暫停
+import xml.etree.ElementTree as ET  # xml.etree.ElementTree：解析 XML
+from dataclasses import dataclass  # dataclass：用裝飾器快速定義資料類別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-import requests
+import requests  # requests：發送 HTTP 請求
 
 LIST_URL = "https://tisvcloud.freeway.gov.tw/history/motc20/CCTV.xml"
 CACHE = Path("data/cctv.xml")                       # 下載後存在本機，一天內不重複下載
@@ -185,6 +185,7 @@ def find_cameras(road: str = "", direction: str = "", km_from: float = 0, km_to:
             and km_from <= c.km <= km_to]
 
 
+# get_camera：依編號找攝影機。輸入攝影機編號；回傳對應的攝影機資料，找不到就丟 KeyError
 def get_camera(camera_id: str) -> Camera:
     for c in load_cameras():
         if c.id == camera_id:
@@ -204,12 +205,12 @@ CCTV-N1-N-34.400-R-高公局-北向入口 34K+400 https://cctvn.freeway.gov.tw/a
 CCTV-N1-N-34.450-B-五股交流道-高公局 34K+450 https://cctvn.freeway.gov.tw/abs2mjpg/bmjpg?camera=13442`),
       "這是實際查詢的結果。影像網址的格式是 MJPEG：伺服器不斷送出一張接一張的 JPEG 圖。OpenCV 的 `VideoCapture` 可以直接打開這種網址。",
       "**步驟二：讀影像串流。** 寫 traffic/capture.py：",
-      C(String.raw`import time
-from pathlib import Path
-from typing import Iterator
+      C(String.raw`import time  # time：計時與暫停
+from pathlib import Path  # Path：處理檔案路徑的物件
+from typing import Iterator  # Iterator：標註『可逐一取值的迭代器』
 
-import cv2
-import numpy as np
+import cv2  # cv2：OpenCV：影像處理
+import numpy as np  # numpy：陣列與數值運算
 
 
 def read_frames(source: str, max_seconds: float | None = None) -> Iterator[np.ndarray]:
@@ -273,11 +274,11 @@ def record_clip(url: str, seconds: float, path: str) -> tuple[int, float]:
       "**步驟三：錄一段影片。** 寫 record.py：",
       C(String.raw`"""錄一段影片。用法：python record.py CCTV-N1-N-33.120-M 40
 把串流錄成檔案，之後的實驗都用檔案：即時串流每一秒都不一樣，錄下來才能反覆測試、公平比較。"""
-import sys
-from pathlib import Path
+import sys  # sys：Python 直譯器相關（參數、路徑）
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from traffic.cameras import get_camera
-from traffic.capture import record_clip
+from traffic.cameras import get_camera  # get_camera：依攝影機編號取得攝影機資料
+from traffic.capture import record_clip  # record_clip：把串流錄成 mp4 檔
 
 # 命令列參數：第一個是攝影機編號，第二個是要錄幾秒；都沒給就用預設值
 camera_id = sys.argv[1] if len(sys.argv) > 1 else "CCTV-N1-N-33.120-M"
@@ -334,8 +335,8 @@ True`),
       { note: "**白話版：** 想像你站在路邊拍很多張照片，路面、護欄、天橋每張都一樣，只有車子在變。如果你能算出『平常的樣子』（背景），再把每一幀和背景相減，剩下的就是在動的東西，也就是車子。這個方法不需要任何模型，電腦自己學背景，這就是背景相減。" },
       "**步驟：寫背景相減的偵測器，traffic/motion.py。**",
       C(String.raw`"""方法一：背景相減。不用任何模型，只靠『和背景不一樣的東西就是在動』來找出車子。"""
-import cv2
-import numpy as np
+import cv2  # cv2：OpenCV：影像處理
+import numpy as np  # numpy：陣列與數值運算
 
 Box = tuple[int, int, int, int]       # x, y, 寬, 高（x、y 是左上角）
 
@@ -352,6 +353,7 @@ def make_roi(shape: tuple, top: float = 0.28) -> np.ndarray:
 
 
 class MotionDetector:
+    # __init__：建立背景相減偵測器。輸入感興趣區域，以及最小面積、參考幀數、敏感度等參數
     def __init__(self, roi: np.ndarray, min_area: int = 120, history: int = 150, var_threshold: float = 32):
         self.roi = roi
         self.min_area = min_area                   # 面積小於這個的輪廓當雜訊丟掉（遠處的小車也會被擋掉）
@@ -389,13 +391,13 @@ class MotionDetector:
       { note: "**為什麼這樣做：** 為什麼要這麼多後處理（形態學、面積門檻）？因為背景相減的原始輸出很髒：車子的窗戶和車身顏色不同，會被切成好幾塊；樹葉晃動、光線變化會產生零星的白點。不處理，你會得到一堆破碎的小框，數量完全不能用。**電腦視覺幾乎沒有『一步到位』的演算法，原始結果加上清理步驟，才是可用的結果。**" },
       "**實際跑看看：** 寫 try_motion.py，處理整支影片，並把幾幀畫上框存成圖片：",
       C(String.raw`# try_motion.py：用背景相減處理整支影片，並把幾幀畫上框存成圖片，用肉眼檢查框得對不對
-import sys
+import sys  # sys：Python 直譯器相關（參數、路徑）
 
-import cv2
-import numpy as np
+import cv2  # cv2：OpenCV：影像處理
+import numpy as np  # numpy：陣列與數值運算
 
-from traffic.capture import read_frames
-from traffic.motion import MotionDetector, make_roi
+from traffic.capture import read_frames  # read_frames：從串流或影片一幀一幀讀出來
+from traffic.motion import MotionDetector, make_roi  # MotionDetector：用背景相減偵測移動的物體；make_roi：建立只看路面的感興趣區域（ROI）
 
 clip = sys.argv[1] if len(sys.argv) > 1 else "data/clips/CCTV-N1-N-33.120-M.mp4"
 SHOW = [10, 120, 240, 340]                       # 要存下來看的幾幀（編號從 0 開始）
@@ -452,8 +454,8 @@ if shots:
       { note: "**白話版：** 光知道『這一幀裡有 5 輛車』還不夠，因為下一幀還是那 5 輛，沒有人告訴你它們是同一批。要數『總共有幾輛車經過』，必須知道『這一幀的這輛車，就是上一幀的那輛車』，這叫追蹤。然後在路面拉一條看不見的線，每輛車從線的一邊跨到另一邊，就算通過一輛。" },
       "**步驟：寫追蹤與計數，traffic/tracking.py。**",
       C(String.raw`"""把『每一幀各自找到的框』串成『同一輛車的軌跡』，才能數車、算速度。"""
-import math
-from dataclasses import dataclass, field
+import math  # math：數學函式
+from dataclasses import dataclass, field  # dataclass：用裝飾器快速定義資料類別；field：設定 dataclass 欄位的預設值等細節
 
 Box = tuple[int, int, int, int]
 
@@ -476,6 +478,7 @@ class CentroidTracker:
     """最簡單的追蹤：新的一幀裡，每個框去找『離它最近的舊軌跡』，近到一定距離就算同一輛。
     實務上有更強的追蹤（例如 YOLO 內建的 ByteTrack），核心也是「把這一幀的框和上一幀的軌跡配對」。"""
 
+    # __init__：建立追蹤器，記下比對距離上限，以及可容忍連續遺失的幀數
     def __init__(self, max_distance: float = 60, max_missed: int = 3):
         # max_distance：兩幀之間中心點最多移動多少像素還算同一輛（和幀率、車速、畫面大小都有關，要自己調）
         # max_missed：連續幾幀沒配到框就放棄這條軌跡（車被擋住一兩幀不會立刻斷掉）
@@ -513,10 +516,12 @@ class CentroidTracker:
 class LineCounter:
     """在畫面上拉一條水平的線，軌跡的中心點從一側跨到另一側就算通過一輛。"""
 
+    # __init__：記下計數線的高度，並準備一個集合記錄已經算過的軌跡
     def __init__(self, y: float):
         self.y = y
         self.counted: set[int] = set()                 # 已經算過的軌跡編號，同一輛車只算一次
 
+    # update：輸入目前所有軌跡；中心點跨過計數線的軌跡累計一次（同一輛只算一次），回傳累計通過數
     def update(self, tracks: dict[int, Track]) -> int:
         for tid, t in tracks.items():
             if tid in self.counted or len(t.path) < 2:
@@ -537,12 +542,12 @@ class LineCounter:
       "**計數線（`LineCounter`）：** 在畫面某個高度拉一條水平線，每條軌跡最近兩個中心點如果分別在線的兩側（`(y0 - y) * (y1 - y) < 0`，兩個數字相乘為負，代表一正一負），就算通過一次。用 `counted` 集合確保同一輛車只算一次。",
       "**實際跑看看：** 寫 try_count.py，兩種偵測方法各自追蹤與計數，再互相對照：",
       C(String.raw`# try_count.py：用兩種偵測方法各自追蹤、數『通過計數線』的車，再互相對照
-import sys
+import sys  # sys：Python 直譯器相關（參數、路徑）
 
-from traffic.capture import read_frames
-from traffic.motion import MotionDetector, make_roi
-from traffic.tracking import CentroidTracker, LineCounter
-from traffic.yolo import YoloDetector
+from traffic.capture import read_frames  # read_frames：從串流或影片一幀一幀讀出來
+from traffic.motion import MotionDetector, make_roi  # MotionDetector：用背景相減偵測移動的物體；make_roi：建立只看路面的感興趣區域（ROI）
+from traffic.tracking import CentroidTracker, LineCounter  # CentroidTracker：依中心點距離追蹤同一輛車；LineCounter：在畫面畫一條線，數有幾輛車通過
+from traffic.yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 clip = sys.argv[1] if len(sys.argv) > 1 else "data/clips/CCTV-N1-N-33.120-M.mp4"
 
@@ -600,13 +605,14 @@ YOLO    ：建立過 43 條軌跡，通過計數線 30 輛`),
       { note: "**先說清楚兩件事：** 一、第一次執行時，Ultralytics 會自動從它官方的 GitHub 發行頁面下載模型檔 yolo26n.pt，大約 5.3 MB。我是這樣下載與執行的，你可以先確認自己放心再跑。二、**Ultralytics 的授權是 AGPL-3.0**（我查了套件的中繼資料）。個人學習與開源專案沒有問題；如果要放進商業產品，要仔細閱讀授權條款，它可能要求你公開原始碼，或另外購買商業授權。" },
       "**步驟：寫 YOLO 偵測器，traffic/yolo.py。**",
       C(String.raw`"""方法二：YOLO 物件偵測。模型看過幾十萬張標好的圖，直接認得『這是一輛車』。"""
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 # COCO 資料集的類別名稱（以載入後的 model.names 為準，用名稱對照比憑記憶寫死編號可靠）
 VEHICLE_NAMES = {"car", "motorcycle", "bus", "truck"}
 
 
 class YoloDetector:
+    # __init__：載入 YOLO 權重，記下信心門檻、輸入尺寸與是否去除重複框，並找出車輛類別的編號
     def __init__(self, weights: str = "yolo26n.pt", conf: float = 0.25, imgsz: int = 640, remove_duplicates: bool = True):
         from ultralytics import YOLO                    # 延遲匯入：沒裝也能用背景相減
         self.model = YOLO(weights)                      # 第一次會自動下載權重檔（約 5 MB，來自官方 GitHub 發行頁）
@@ -661,15 +667,15 @@ def dedupe(dets: list, thr: float = 0.5) -> list:
       ] },
       "**步驟：先跑一遍，看速度與數量。** 寫 try_yolo.py：",
       C(String.raw`# try_yolo.py：用 YOLO 處理整支影片，看速度與數量，並把框存成圖片
-import sys
-import time
+import sys  # sys：Python 直譯器相關（參數、路徑）
+import time  # time：計時與暫停
 
-import cv2
-import numpy as np
+import cv2  # cv2：OpenCV：影像處理
+import numpy as np  # numpy：陣列與數值運算
 
-from traffic.capture import read_frames
-from traffic.motion import make_roi
-from traffic.yolo import YoloDetector
+from traffic.capture import read_frames  # read_frames：從串流或影片一幀一幀讀出來
+from traffic.motion import make_roi  # make_roi：建立只看路面的感興趣區域（ROI）
+from traffic.yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 clip = sys.argv[1] if len(sys.argv) > 1 else "data/clips/CCTV-N1-N-33.120-M.mp4"
 SHOW = [10, 120, 240, 340]
@@ -708,11 +714,11 @@ if shots:
       ] },
       { note: "**為什麼這樣做：** 為什麼要自己手數？因為『看起來框得不錯』是一種很不可靠的評估：你會被畫得漂亮的框說服。人工答案很花時間，但它讓『哪個方法好』變成一個可以回答的問題。而且你會在數的過程中，發現資料的真實難度。人工答案越少越不可靠，我這份只有 8 個畫面，它只能抓出明顯的問題，不能當成嚴謹的結論。" },
       C(String.raw`# try_compare.py：把兩種方法在『人工數過的幀』上的結果，和人工答案放在一起比
-import sys
+import sys  # sys：Python 直譯器相關（參數、路徑）
 
-from traffic.capture import read_frames
-from traffic.motion import MotionDetector, make_roi
-from traffic.yolo import YoloDetector
+from traffic.capture import read_frames  # read_frames：從串流或影片一幀一幀讀出來
+from traffic.motion import MotionDetector, make_roi  # MotionDetector：用背景相減偵測移動的物體；make_roi：建立只看路面的感興趣區域（ROI）
+from traffic.yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 clip = sys.argv[1] if len(sys.argv) > 1 else "data/clips/CCTV-N1-N-33.120-M.mp4"
 
@@ -758,11 +764,11 @@ YOLO：完全答對 6/8 幀，平均每幀差 0.38 輛`),
       "**意外的結果：** 在這 8 個畫面上，背景相減（7/8）反而比 YOLO（6/8）好。這和一般的印象不同，所以值得查原因。我把 YOLO 在第 200、290 幀的框畫出來看，發現問題是**同一輛車被框了兩次**（兩個重疊的框，信心都不低），所以數量變成 4 和 2，多算了。",
       "**修正：去重複。** 如果兩個框重疊得很多，就是同一輛車，只留信心最高的。重疊程度用 IoU（Intersection over Union，交集除以聯集）衡量，0 是完全沒重疊，1 是完全重合。`dedupe` 函式做的就是這件事（在上面的 yolo.py 裡）。**把信心門檻和去重複兩個設定組合起來試：**",
       C(String.raw`# try_tune.py：YOLO 只跑一次，再用不同的『信心門檻』與『去重複』設定，看哪種和人工答案最接近
-import sys
+import sys  # sys：Python 直譯器相關（參數、路徑）
 
-from traffic.capture import read_frames
-from traffic.motion import make_roi
-from traffic.yolo import YoloDetector, dedupe
+from traffic.capture import read_frames  # read_frames：從串流或影片一幀一幀讀出來
+from traffic.motion import make_roi  # make_roi：建立只看路面的感興趣區域（ROI）
+from traffic.yolo import YoloDetector, dedupe  # YoloDetector：用 YOLO 模型偵測車輛；dedupe：同一輛車被框兩次時只留信心最高的
 
 clip = sys.argv[1] if len(sys.argv) > 1 else "data/clips/CCTV-N1-N-33.120-M.mp4"
 # 人工答案：第幾幀 -> 肉眼數到的車輛數（車身中心在畫面下半部的）
@@ -836,12 +842,12 @@ for conf in (0.20, 0.25, 0.35, 0.45):               # 信心門檻：越高越�
       "**實驗設計：** 同一時間，對很多支攝影機各看 20 秒，記下兩份資料：(1) 我們從影像算出的指標；(2) 高公局當下公布的該路段平均車速（對照答案）。看指標和車速有沒有關係。",
       "**我們先設計三個指標，寫在 traffic/metrics.py：**",
       C(String.raw`"""把一段影片變成幾個『路況指標』。"""
-from dataclasses import dataclass
+from dataclasses import dataclass  # dataclass：用裝飾器快速定義資料類別
 
-import cv2
-import numpy as np
+import cv2  # cv2：OpenCV：影像處理
+import numpy as np  # numpy：陣列與數值運算
 
-from .yolo import YoloDetector
+from .yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 
 @dataclass
@@ -895,12 +901,12 @@ def analyze_clip(frames: list[np.ndarray], fps: float, roi: np.ndarray, detector
       "**寫收集程式，collect.py：** 對指定的每支攝影機看 20 秒，把指標和官方車速存進 data/samples.csv。",
       C(String.raw`"""高速公路局公開的『路段即時路況』：每一分鐘更新的各路段平均車速。
 拿來當我們用影像算出來的結果的對照答案。"""
-import time
-import xml.etree.ElementTree as ET
-from dataclasses import dataclass
-from pathlib import Path
+import time  # time：計時與暫停
+import xml.etree.ElementTree as ET  # xml.etree.ElementTree：解析 XML
+from dataclasses import dataclass  # dataclass：用裝飾器快速定義資料類別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-import requests
+import requests  # requests：發送 HTTP 請求
 
 BASE = "https://tisvcloud.freeway.gov.tw/history/motc20/"
 NS = {"t": "http://traffic.transportdata.tw/standard/traffic/schema/"}
@@ -959,18 +965,18 @@ def official_speed(road: str, direction: str, km: float) -> SectionSpeed | None:
     return SectionSpeed(name, None, None, updated)`),
       C(String.raw`"""collect.py：對一批攝影機各看一小段，把『我們算出的指標』和『官方此刻的平均車速』記進 CSV。
 用法：python collect.py CCTV-N1-N-33.120-M CCTV-N1-N-47.300-M ...   （可以隔一陣子再跑，樣本越多越好）"""
-import csv
-import sys
-import time
-from datetime import datetime
-from pathlib import Path
+import csv  # csv：讀寫 CSV
+import sys  # sys：Python 直譯器相關（參數、路徑）
+import time  # time：計時與暫停
+from datetime import datetime  # datetime：日期時間型別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from traffic.cameras import get_camera
-from traffic.capture import read_frames
-from traffic.metrics import analyze_clip
-from traffic.motion import make_roi
-from traffic.official import official_speed
-from traffic.yolo import YoloDetector
+from traffic.cameras import get_camera  # get_camera：依攝影機編號取得攝影機資料
+from traffic.capture import read_frames  # read_frames：從串流或影片一幀一幀讀出來
+from traffic.metrics import analyze_clip  # analyze_clip：分析一段影片的車流
+from traffic.motion import make_roi  # make_roi：建立只看路面的感興趣區域（ROI）
+from traffic.official import official_speed  # official_speed：查官方資料，取得某路段的平均車速
+from traffic.yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 SECONDS = 20                                # 每支攝影機看幾秒
 OUT = Path("data/samples.csv")
@@ -1018,9 +1024,9 @@ CCTV-N4-E-14.805-M       官方 96.0 km/h | 車數 1.6 | 佔用 0.01 | 光流 49
       "**用數字檢驗：寫 correlate.py，算每個指標和官方車速的相關。** 用的是 Spearman 等級相關係數：只看『大小順序』有沒有一致，不在乎數值大小。1 代表完全同向，負 1 代表完全反向，0 代表看不出關係。",
       C(String.raw`# correlate.py：各個『影像指標』和『官方車速』有沒有關係？用等級相關係數（Spearman）看。
 # 1 代表完全同向、-1 完全反向、0 代表看不出關係。只看「大小順序」是否一致，不在乎數值的大小。
-import csv
+import csv  # csv：讀寫 CSV
 
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 
 def rank(a):
@@ -1076,18 +1082,18 @@ for key, name in [("vehicles", "車輛數"), ("occupancy", "佔用率"), ("flow_
       { note: "**白話版：** 上一課之後，路況的『判斷』由官方車速負責。這一課要把它做成好用的東西：把官方車速加上影像觀察整理成一份資料，請 LLM 用一段話播報；再把整件事做成專案 3 Agent 的第五個工具：『查某個釣點附近的路況』。LLM 在這裡只負責把事實說成人話，不負責判斷、也不負責算數字。" },
       "**步驟一：整合成『路況觀察』，traffic/observe.py。**",
       C(String.raw`"""把『官方車速』和『影像觀察』合成一份路況觀察，再交給 LLM 播報。"""
-import math
-from dataclasses import asdict, dataclass
-from datetime import datetime
+import math  # math：數學函式
+from dataclasses import asdict, dataclass  # asdict：把 dataclass 轉成字典；dataclass：用裝飾器快速定義資料類別
+from datetime import datetime  # datetime：日期時間型別
 
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
-from .cameras import Camera, load_cameras
-from .capture import read_frames
-from .llm import LLM
-from .motion import make_roi
-from .official import official_speed
-from .yolo import YoloDetector
+from .cameras import Camera, load_cameras  # Camera：攝影機的資料物件；load_cameras：取得攝影機清單（一天只下載一次）
+from .capture import read_frames  # read_frames：從串流或影片一幀一幀讀出來
+from .llm import LLM  # LLM：模型包裝的介面（讓不同供應商可以互換）
+from .motion import make_roi  # make_roi：建立只看路面的感興趣區域（ROI）
+from .official import official_speed  # official_speed：查官方資料，取得某路段的平均車速
+from .yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -1133,7 +1139,7 @@ class Observation:
 
 def observe(cam: Camera, detector: YoloDetector, seconds: float = 10) -> Observation:
     """看一支攝影機幾秒，再加上官方車速，整理成一份觀察。"""
-    import time
+    import time  # time：計時與暫停
     start = time.time()
     frames = list(read_frames(cam.url, max_seconds=seconds))
     if not frames:
@@ -1168,7 +1174,7 @@ SYSTEM = """你是路況播報員。根據使用者給的 JSON 資料，用繁�
 
 def broadcast(llm: LLM, obs: Observation) -> str:
     """把觀察資料（JSON）交給 LLM，請它寫成播報。LLM 只負責「說成人話」，數字都是程式給的。"""
-    import json
+    import json  # json：讀寫 JSON
     return llm.text(SYSTEM, json.dumps(asdict(obs), ensure_ascii=False))`),
       "**設計說明：**",
       { list: [
@@ -1181,17 +1187,18 @@ def broadcast(llm: LLM, obs: Observation) -> str:
       { note: "**為什麼這樣做：** 為什麼提示詞要把『不能用 vehicles_in_view 推論壅塞』明講出來？因為模型很愛『合理化』：給它一個『畫面裡有 6 輛車』和『官方時速 30』，它可能自己編出一個故事，說『車流密集，緩慢行駛』，聽起來合理，但其實是它猜的。**要限制它能怎麼用你給的資料，就要在提示詞裡把規則講清楚，並用評測檢查它有沒有遵守。**" },
       "**步驟二：寫命令列入口，watch.py。**",
       C(String.raw`"""看一支攝影機，播報路況。用法：python watch.py CCTV-N1-N-47.300-M --seconds 10 --provider claude"""
-import argparse
-from dataclasses import asdict
+import argparse  # argparse：解析命令列參數
+from dataclasses import asdict  # asdict：把 dataclass 轉成字典
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from traffic.cameras import get_camera
-from traffic.llm import get_llm
-from traffic.observe import broadcast, observe
-from traffic.yolo import YoloDetector
+from traffic.cameras import get_camera  # get_camera：依攝影機編號取得攝影機資料
+from traffic.llm import get_llm  # get_llm：依名稱挑出用哪一家模型並回傳模型物件
+from traffic.observe import broadcast, observe  # broadcast：把觀察資料交給模型寫成播報；observe：看一支攝影機幾秒，加上官方車速整理成一份觀察
+from traffic.yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 
+# main：命令列入口。讀取攝影機編號等參數，建立偵測器與模型，執行觀察並輸出結果
 def main():
     load_dotenv()
     p = argparse.ArgumentParser(description="路況觀察員")
@@ -1228,16 +1235,16 @@ if __name__ == "__main__":
       "**步驟三：做成專案 3 Agent 的工具。** 把整個 `traffic` 資料夾複製進專案 3，並在專案 3 的 `build_tools()` 裡加上 `from traffic.agent_tool import get_traffic_tool`，把 `get_traffic_tool()` 加進回傳的清單。專案 3 也要多裝 `opencv-python` 與 `ultralytics`。（專案 3 的 Tool 格式見 [[pj-03]]。）下面的檔案要用到專案 3 的 `fishagent.tooling` 與 `data/spots.db`，所以只能在專案 3 裡執行。",
       C(String.raw`"""給專案 3 的 Agent 用的第五個工具：查某個釣點附近的國道路況。
 把這個檔案放進專案 3，並把 get_traffic_tool() 加進 build_tools() 的清單。"""
-import sqlite3
-from dataclasses import asdict
+import sqlite3  # sqlite3：內建的 SQLite 資料庫
+from dataclasses import asdict  # asdict：把 dataclass 轉成字典
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
 from fishagent.tooling import Tool          # 專案 3 的工具格式
 
-from .observe import nearest_cameras, observe, speed_label
-from .official import official_speed
-from .yolo import YoloDetector
+from .observe import nearest_cameras, observe, speed_label  # nearest_cameras：找離某個座標最近的攝影機；observe：看一支攝影機幾秒，加上官方車速整理成一份觀察；speed_label：把車速換成壅塞程度的文字標籤
+from .official import official_speed  # official_speed：查官方資料，取得某路段的平均車速
+from .yolo import YoloDetector  # YoloDetector：用 YOLO 模型偵測車輛
 
 _detector = None            # YOLO 模型很大，要用到才載入，而且只載入一次
 
@@ -1248,6 +1255,7 @@ class TrafficArgs(BaseModel):
     look: bool = Field(False, description="是否真的連上攝影機看影像（較慢，約 10 秒）；預設只查官方車速")
 
 
+# get_traffic：工具函式。輸入釣點編號、搜尋距離（公里）與是否要看畫面；查出釣點座標，再找附近攝影機的路況
 def get_traffic(spot_id: int, max_km: float, look: bool):
     # 唯讀開啟釣點資料庫，用編號查出名稱與座標
     with sqlite3.connect("file:data/spots.db?mode=ro", uri=True) as conn:

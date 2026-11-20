@@ -36,13 +36,14 @@ openssl x509 -in c.pem -noout -subject -issuer -dates -ext subjectAltName
 #     DNS:localhost, IP Address:127.0.0.1`),
       { tip: "k.pem 是私鑰，等同密碼，不要提交進 git、不要貼給別人（見 isec-04）。c.pem 是公開的憑證，可以分享。" },
       "**用 Python 實際驗證（我在本機開了一個使用這張憑證的 TLS 伺服器，用四種客戶端設定連線）：**",
-      C(String.raw`import socket, ssl, threading
+      C(String.raw`import socket, ssl, threading  # socket：底層網路連線；ssl：TLS 加密連線設定；threading：多執行緒
 
 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ctx.load_cert_chain("c.pem", "k.pem")
 srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(5)
 port = srv.getsockname()[1]
 
+# serve：測試用的 TLS 伺服器，反覆接受連線並回一個簡單的 HTTP 回應，輸入無，輸出無
 def serve():
     while True:
         try:
@@ -53,6 +54,7 @@ def serve():
             pass
 threading.Thread(target=serve, daemon=True).start()
 
+# try_connect：用指定的 TLS 設定連本機伺服器並印出結果，憑證驗證失敗就印出原因，輸入標籤與 SSL 設定，輸出無
 def try_connect(label, context, host="localhost"):
     try:
         with socket.create_connection(("127.0.0.1", port)) as raw:
@@ -73,7 +75,7 @@ try_connect("4 verification off", bad)`),
 3 hostname mismatch  -> SSLCertVerificationError: Hostname mismatch, certificate is not valid for 'example.org'.
 4 verification off   -> OK TLSv1.3 HTTP/1.1 200 OK        <- 能連上，但已經沒有任何身分保證`),
       "**連真實網站，讀它的憑證：**",
-      C(String.raw`import socket, ssl
+      C(String.raw`import socket, ssl  # socket：底層網路連線；ssl：TLS 加密連線設定
 for host in ["www.python.org", "github.com", "developers.cloudflare.com"]:
     ctx = ssl.create_default_context()
     with socket.create_connection((host, 443), timeout=15) as raw:
@@ -101,13 +103,15 @@ for host in ["www.python.org", "github.com", "developers.cloudflare.com"]:
     "isec-02": [
       "**兩個容易搞混的詞：** **驗證（Authentication）** 是『你是誰』（登入）；**授權（Authorization）** 是『你能做什麼』（權限）。先驗證，再授權；兩者都要做對。net-05 講過 Cookie 與 Session，這一課講密碼怎麼存、JWT 是什麼、OAuth 在做什麼。",
       "**密碼：絕對不要存明文，也不要只用單純的 SHA-256。** 要用專為密碼設計的『慢速、有加鹽』的雜湊函式。OWASP 密碼儲存速查表的建議順序是 Argon2id，沒有的話用 scrypt（至少 N=2 的 17 次方、r=8、p=1），舊系統用 bcrypt。Python 標準函式庫有 scrypt，下面是我實際跑過的完整範例：",
-      C(String.raw`import hashlib, hmac, os
+      C(String.raw`import hashlib, hmac, os  # hashlib：計算雜湊（例如 SHA256）；hmac：計算訊息驗證碼 HMAC（常用於安全比對）；os：作業系統功能（路徑、環境變數）
 
+# hash_password：用 scrypt 加隨機鹽雜湊密碼，參數一起存，輸入明文密碼，輸出儲存用字串
 def hash_password(pw: str) -> str:
     salt = os.urandom(16)                                   # 每個密碼一個隨機的鹽
     dk = hashlib.scrypt(pw.encode(), salt=salt, n=2**17, r=8, p=1, maxmem=2**28, dklen=32)
     return f"scrypt:131072:8:1:{salt.hex()}:{dk.hex()}"      # 把參數一起存，將來才能調整
 
+# verify_password：用儲存的參數重算雜湊並用固定時間比較，輸入明文密碼與儲存字串，輸出 True 或 False
 def verify_password(pw: str, stored: str) -> bool:
     _, n, r, p, salt, dk = stored.split(":")
     new = hashlib.scrypt(pw.encode(), salt=bytes.fromhex(salt), n=int(n), r=int(r), p=int(p), maxmem=2**28, dklen=32)
@@ -123,17 +127,21 @@ print(verify_password("correct horse", h1), verify_password("wrong", h1))   # Tr
         "**固定時間比較 `hmac.compare_digest`：** 避免從比較花的時間差猜出內容。",
       ] },
       "**JWT（JSON Web Token，RFC 7519）：** 一串用點分成三段的文字：標頭、內容（payload）、簽章，前兩段是 Base64URL 編碼的 JSON。**內容是編碼而不是加密，任何人都讀得到，所以不能放機密。** 簽章讓伺服器能判斷內容有沒有被改過。下面是我手刻的 HS256 版本，並實測四種攻擊：",
-      C(String.raw`import base64, hashlib, hmac, json, time
+      C(String.raw`import base64, hashlib, hmac, json, time  # base64：base64 編碼與解碼；hashlib：計算雜湊（例如 SHA256）；hmac：計算訊息驗證碼 HMAC（常用於安全比對）；json：讀寫 JSON；time：計時與暫停
 
+# b64u：轉成 URL 安全的 base64 並去掉等號，輸入位元組，輸出字串
 def b64u(b: bytes) -> str: return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+# b64u_dec：b64u 的反向，補回等號後解碼，輸入字串，輸出位元組
 def b64u_dec(s: str) -> bytes: return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
+# sign：用 HS256 簽發 JWT，輸入內容字典與金鑰，輸出 token 字串
 def sign(payload: dict, key: bytes) -> str:
     h = b64u(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
     p = b64u(json.dumps(payload, separators=(",", ":")).encode())
     sig = b64u(hmac.new(key, f"{h}.{p}".encode(), hashlib.sha256).digest())
     return f"{h}.{p}.{sig}"
 
+# verify：驗證 JWT 的演算法與簽章（並檢查有效期），輸入 token 與金鑰，輸出內容字典
 def verify(token: str, key: bytes) -> dict:
     h, p, s = token.split(".")
     header = json.loads(b64u_dec(h))
@@ -160,8 +168,9 @@ alg=none（宣告不需要簽章）                    -> rejected: unexpected a
         "**4. 你的 App** 拿授權碼加上原本的 code_verifier 去換 access token。伺服器重新計算 challenge 比對，不符就拒絕。",
       ] },
       "PKCE 的作用是：即使授權碼在中途被偷走，沒有 verifier 的攻擊者也換不到 token。RFC 9700（OAuth 2.0 安全性最佳實務）寫明：公開客戶端（例如手機 App、單頁應用）必須使用 PKCE，機密客戶端則建議使用；同一份文件也指出 implicit grant（直接在回應裡發 access token）有 token 洩漏與重放的風險。下面用 RFC 7636 附錄 B 的範例值驗算 challenge 的算法：",
-      C(String.raw`import base64, hashlib
+      C(String.raw`import base64, hashlib  # base64：base64 編碼與解碼；hashlib：計算雜湊（例如 SHA256）
 
+# b64u：轉成 URL 安全的 base64 並去掉等號，輸入位元組，輸出字串
 def b64u(b: bytes) -> str: return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 
 verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"      # RFC 7636 附錄 B 的範例 verifier
@@ -171,6 +180,7 @@ print(challenge == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")   # True，與
       "**授權（你能做什麼）要在伺服器端、每一個請求都檢查，而且要檢查『這個資源是不是你的』。** 只檢查『有沒有登入』是不夠的：",
       C(String.raw`notes = {1: ("ada", "a-note"), 2: ("bob", "b-note")}      # 資源編號 -> (擁有者, 內容)
 
+# get_note：讀取筆記前先檢查擁有者，輸入使用者與筆記編號，輸出筆記內容；不是本人就丟 PermissionError
 def get_note(user, nid):
     owner, body = notes[nid]
     if owner != user:                       # 物件層級的授權檢查
@@ -195,7 +205,7 @@ get_note("ada", 2)     # PermissionError: forbidden   <- 沒有這行，ada 把�
     "isec-03": [
       "**OWASP Top 10 是公認最常見網站漏洞的清單**，值得讀一遍；這一課挑三個最經典的：SQL injection（注入）、XSS（跨站腳本）、CSRF（跨站請求偽造）。三者的共同根源是同一件事：**程式把『使用者給的資料』當成了『程式碼或指令』。** 下面的示範都只對我自己建立的本機測試資料執行，目的是看懂防禦為什麼有效。",
       "**SQL injection：把輸入拼進 SQL 字串。**",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 db = sqlite3.connect(":memory:")
 db.executescript("CREATE TABLE users(name TEXT, secret TEXT); INSERT INTO users VALUES('ada','a-secret'),('bob','b-secret');")
 
@@ -215,7 +225,7 @@ print(db.execute("SELECT name, secret FROM users WHERE name = ?", (user_input,))
         "**ORM 也不是萬靈丹：** ORM 的一般查詢會參數化，但它們通常也提供『執行原始 SQL』的函式，在那裡拼字串一樣會中招。",
       ] },
       "**XSS：把使用者輸入原樣放進 HTML。** 輸入的 `<script>` 會在其他使用者的瀏覽器裡執行，能偷 Cookie、冒用身分、改畫面。",
-      C(String.raw`import html
+      C(String.raw`import html  # html：HTML 轉義處理
 comment = '<script>alert(1)</script><img src=x onerror="steal()">'
 print(f"<p>{comment}</p>")                   # 原樣輸出：腳本與 onerror 都會被瀏覽器執行
 print(f"<p>{html.escape(comment)}</p>")      # <p>&lt;script&gt;alert(1)&lt;/script&gt;&lt;img src=x onerror=&quot;steal()&quot;&gt;</p>
@@ -234,8 +244,9 @@ print(f'<input value="{html.escape(attr, quote=True)}">')   # <input value="x&qu
         "**同步器令牌（CSRF token）：** 每個 session 一個隨機令牌，放在表單的隱藏欄位或自訂標頭，伺服器比對。攻擊者的網頁拿不到這個令牌。",
         "**會改變狀態的操作不要用 GET：** 圖片連結、預先載入都會觸發 GET。改資料用 POST、PUT、DELETE。",
       ] },
-      C(String.raw`import secrets, hmac
+      C(String.raw`import secrets, hmac  # secrets：產生安全的隨機值；hmac：計算訊息驗證碼 HMAC（常用於安全比對）
 session_token = secrets.token_urlsafe(32)            # 登入時產生，存在伺服器端 session
+# check：用固定時間比較表單 token 與 session token，輸入表單 token，輸出 True 或 False
 def check(form_token): return hmac.compare_digest(form_token, session_token)
 print(check(session_token))                          # True   合法表單
 print(check("guess"))                                # False  偽造請求`),
@@ -252,7 +263,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 # nosniff                  瀏覽器不要自己猜內容類型
 # HSTS                     告訴瀏覽器之後一年都只用 HTTPS 連這個網站`),
       "**再一個也很常見的：路徑穿越（path traversal）。** 使用者給檔名，你拿去讀檔，他給 `../../etc/passwd`。防禦是『解析成絕對路徑後，確認仍在允許的資料夾內』：",
-      C(String.raw`from pathlib import Path
+      C(String.raw`from pathlib import Path  # Path：處理檔案路徑的物件
 base = Path("/srv/files").resolve()
 for name in ["report.txt", "../../etc/passwd"]:
     p = (base / name).resolve()
@@ -302,7 +313,7 @@ git log -p --all -S"sk-test" --oneline
       ] },
       "**預防：寫一個簡單的掃描，在提交前找出疑似機密。** 下面是我實際跑過的版本（只是示範原理，正式專案請用成熟的工具與 GitHub 的 secret scanning，這類工具有大量已知格式的規則）：",
       C(String.raw`# scan.py
-import re, sys, pathlib
+import re, sys, pathlib  # re：正規表達式；sys：Python 直譯器相關（參數、路徑）；pathlib：以物件處理檔案路徑
 PATTERNS = {
     "generic key assignment": re.compile(r"(?i)(api[_-]?key|secret|token|password)\s*[=:]\s*['\"]?([A-Za-z0-9_\-]{12,})"),
     "AWS access key id": re.compile(r"AKIA[0-9A-Z]{16}"),
@@ -341,7 +352,7 @@ for f in pathlib.Path(sys.argv[1]).rglob("*"):
     "isec-05": [
       "**最小權限原則（principle of least privilege）：任何人、程式、帳號，只給完成工作所需的最少權限，而且只給需要的那段時間。** 它不防止出事，而是讓出事時的損害變小：金鑰外洩了，攻擊者也只能做那把金鑰允許的事。isec-03 的 SQL injection、isec-04 的機密外洩，最小權限都是第二道防線。",
       "**實測：把資料庫連線改成唯讀。** 如果一支只需要讀資料的程式（例如報表、搜尋）本來就只有讀取權限，即使有人成功注入 SQL，也寫不進、刪不掉任何東西：",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 admin = sqlite3.connect("app.db")
 admin.execute("CREATE TABLE notes(id INTEGER, body TEXT)")
 admin.execute("INSERT INTO notes VALUES (1,'hello')"); admin.commit(); admin.close()

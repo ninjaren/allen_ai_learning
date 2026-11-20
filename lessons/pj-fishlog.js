@@ -130,13 +130,13 @@ __pycache__/`),
       ] } },
       "**第七步：確認環境沒問題。** 建一個 check_env.py，檢查套件與金鑰（只印出有沒有設定，不印金鑰內容）。",
       C(String.raw`# check_env.py：確認套件裝好了、金鑰有設定（只印出「有沒有設」，絕不印出金鑰本身）
-import os
-from dotenv import load_dotenv
+import os  # os：作業系統功能（路徑、環境變數）
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
 load_dotenv()                      # 把 .env 的內容讀進環境變數
 
 import anthropic, pydantic         # 能匯入就代表安裝成功（匯入失敗會直接丟出 ImportError）
-from google import genai
+from google import genai  # genai：Google 的 Gemini SDK
 
 # 逐一檢查環境變數；os.getenv 沒設定時回傳 None，在條件判斷裡等於「沒有」
 for key in ["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "LLM_PROVIDER"]:
@@ -162,7 +162,7 @@ print("pydantic", pydantic.VERSION)`),
       "**為什麼先設計格式、再寫提示詞？** 因為 Claude 和 Gemini 都支援『結構化輸出』：你把格式交給它，它保證回傳符合格式的資料（見 [[ai-05]] 的結構化輸出）。格式就是你和模型之間的合約。",
       "**設計的起點：看你自己的資料。** 你的釣魚平台資料庫裡 catches 資料表有這些欄位：魚種、體長、重量、餌料、潮況、備註。這次的資料是口語筆記，所以我們把它拆成兩層：一次出釣（Trip），裡面有很多筆漁獲（Catch）。",
       C(String.raw`# fishlog/schema.py
-from pydantic import BaseModel
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 
 # 資料格式就是你和模型之間的「合約」：模型必須照這個格式回傳，Pydantic 會幫你檢查型別。
@@ -253,8 +253,8 @@ water_temp_c
       { note: "**白話版：** 這一課要讓程式第一次真的『請 AI 幫忙』。你要做兩件事：寫一份清楚的工作說明（system prompt），再把一篇筆記連同『今天幾號』交給它。就像請新同事整理筆記，要先告訴他規則，還要告訴他今天幾號，他才算得出『昨天』是哪天。" },
       "**步驟一：寫提示詞，放進 fishlog/extract.py。** 這個檔案之後會越長越大，現在先放三樣東西：系統提示詞、組裝使用者訊息的函式、切分筆記的函式。",
       C(String.raw`# fishlog/extract.py（第 3 課的初版：這個檔案會在第 5 課長大）
-import re
-from datetime import date
+import re  # re：正規表達式
+from datetime import date  # date：日期型別
 
 # 系統提示詞：每一條規則，都對應一種你預期模型會犯的錯
 SYSTEM = """你是釣魚日誌整理員。把使用者的口語釣魚筆記整理成結構化資料。
@@ -287,13 +287,13 @@ def split_notes(text: str) -> list[str]:
             { note: "**為什麼這樣做：** 先寫成一個獨立的小檔案，是為了把『呼叫模型』這一件事單獨隔離出來看。這時候出問題，你只需要懷疑提示詞、模型或金鑰，不用同時懷疑後面的重試、報表程式。另外預設用小型模型（haiku），是因為整理一篇短筆記不需要最強的模型，小模型便宜又快。不夠準再升級，而且要靠第 7 課的評測決定，不是憑感覺。" },
       "**步驟二：寫一個一次性的測試檔 try_one.py。** 這個檔案是實驗用的，放在專案根目錄。",
       C(String.raw`# try_one.py：一次性的實驗檔，先只讓模型整理一篇筆記，觀察它的表現
-from datetime import date
+from datetime import date  # date：日期型別
 
-import anthropic
-from dotenv import load_dotenv
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishlog.extract import SYSTEM, build_prompt, split_notes
-from fishlog.schema import Trip
+from fishlog.extract import SYSTEM, build_prompt, split_notes  # SYSTEM：系統提示詞（給模型的固定指示）；build_prompt：組出送給模型的使用者訊息；split_notes：把檔案依分隔線切成一篇一篇筆記
+from fishlog.schema import Trip  # Trip：一次出釣的資料模型（一篇筆記整理成一個 Trip）
 
 load_dotenv()                                # 先載入 .env，下一行建立 client 時才讀得到金鑰
 client = anthropic.Anthropic()               # 自動讀取環境變數 ANTHROPIC_API_KEY
@@ -387,10 +387,10 @@ for i, note in enumerate(notes, 1):          # enumerate(…, 1)：編號從 1 �
       ] },
       C(String.raw`# fishlog/llm.py
 """把不同家的 LLM 包成同一個介面。其他程式只認 LLM，不認 Claude 或 Gemini。"""
-import os
-from typing import Protocol, TypeVar
+import os  # os：作業系統功能（路徑、環境變數）
+from typing import Protocol, TypeVar  # Protocol：定義介面（只要有這些方法就算符合）；TypeVar：宣告泛型的型別變數
 
-from pydantic import BaseModel
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 T = TypeVar("T", bound=BaseModel)      # 「某一種 Pydantic 模型」：傳進什麼類別，就回傳那個類別的物件
 
@@ -410,6 +410,7 @@ class LLM(Protocol):
 
 
 class ClaudeLLM:
+    # __init__：建立 Claude 版的模型包裝。記下模型名稱，延遲匯入 anthropic 並建立用戶端
     def __init__(self, model: str = "claude-haiku-5-5", **client_kwargs):
         import anthropic                      # 延遲匯入：沒裝這個套件也能用 Gemini
         self.name = model
@@ -417,6 +418,7 @@ class ClaudeLLM:
         # client_kwargs 讓你可以傳 api_key、base_url（測試時接假伺服器用）
         self.client = anthropic.Anthropic(**client_kwargs)   # 沒傳 api_key 就讀環境變數 ANTHROPIC_API_KEY
 
+    # extract：Claude 版。把 schema 轉成 JSON Schema 送給 API，收到結果後驗證成 Pydantic 物件
     def extract(self, system, user, schema):
         # parse()：把 Pydantic 類別轉成 JSON Schema 送給 API，收到結果後再驗證成物件
         response = self.client.messages.parse(
@@ -428,6 +430,7 @@ class ClaudeLLM:
         )
         return response.parsed_output         # 已經是驗證過的 schema 物件
 
+    # text：Claude 版。輸入系統提示與使用者訊息；回傳純文字回答
     def text(self, system, user):
         response = self.client.messages.create(
             model=self.model,
@@ -440,12 +443,14 @@ class ClaudeLLM:
 
 
 class GeminiLLM:
+    # __init__：建立 Gemini 版的模型包裝。記下模型名稱，延遲匯入 google.genai 並建立用戶端
     def __init__(self, model: str = "gemini-3.5-flash-lite", **client_kwargs):
-        from google import genai
+        from google import genai  # genai：Google 的 Gemini SDK
         self.name = model
         self.model = model
         self.client = genai.Client(**client_kwargs)          # 沒傳金鑰就讀 GEMINI_API_KEY
 
+    # extract：Gemini 版。用 system_instruction 傳系統提示，要求回覆符合 schema，再驗證成物件
     def extract(self, system, user, schema):
         interaction = self.client.interactions.create(
             model=self.model,
@@ -460,6 +465,7 @@ class GeminiLLM:
         # Gemini 回的是 JSON 字串，要自己用 Pydantic 驗證（Claude 的 parse 幫你做了這一步）
         return schema.model_validate_json(interaction.output_text)
 
+    # text：Gemini 版。輸入系統提示與使用者訊息；回傳純文字回答
     def text(self, system, user):
         interaction = self.client.interactions.create(
             model=self.model,
@@ -498,12 +504,12 @@ def get_llm(provider: str | None = None, model: str | None = None) -> LLM:
       ] },
       "**步驟：用工廠函式選模型。** 改寫 try_one.py，完全不 import anthropic：",
       C(String.raw`# try_one.py（改寫版）：完全不 import anthropic，換模型只要改環境變數
-from datetime import date
-from dotenv import load_dotenv
+from datetime import date  # date：日期型別
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishlog.extract import SYSTEM, build_prompt, split_notes
+from fishlog.extract import SYSTEM, build_prompt, split_notes  # SYSTEM：系統提示詞（給模型的固定指示）；build_prompt：組出送給模型的使用者訊息；split_notes：把檔案依分隔線切成一篇一篇筆記
 from fishlog.llm import get_llm              # 第 4 課做的介面層
-from fishlog.schema import Trip
+from fishlog.schema import Trip  # Trip：一次出釣的資料模型（一篇筆記整理成一個 Trip）
 
 load_dotenv()
 llm = get_llm()                              # 依 LLM_PROVIDER 決定；也可 get_llm("gemini")
@@ -543,11 +549,11 @@ $env:LLM_PROVIDER="gemini"; python try_one.py   # 這個視窗暫時改用 Gemin
             { note: "**為什麼這樣做：** 檢查要寫在程式裡，不能只靠在提示詞裡寫『日期不要在未來』。提示詞是請求，模型多半會照做，但偶爾不會；程式檢查才是保證。你的月報要統計幾百篇，只要有一篇壞資料混進來，整個月的數字就不可信。所以要在資料進入系統前攔一次。" },
       "**步驟一：把檢查與重試加進 fishlog/extract.py。** 保留第 3 課的 SYSTEM、build_prompt、split_notes，在檔案上方補匯入，下方加兩個函式。完整檔案如下：",
       C(String.raw`# fishlog/extract.py（完整版）
-import re
-from datetime import date
+import re  # re：正規表達式
+from datetime import date  # date：日期型別
 
-from .llm import LLM
-from .schema import Trip
+from .llm import LLM  # LLM：模型包裝的介面（讓不同供應商可以互換）
+from .schema import Trip  # Trip：一次出釣的資料模型（一篇筆記整理成一個 Trip）
 
 # 系統提示詞：每一條規則，都對應一種你預期模型會犯的錯。
 # 規則 1、3 防止亂編；規則 2 處理相對日期；規則 4 處理空軍；規則 5 防止模型自作聰明改魚名。
@@ -623,20 +629,22 @@ def split_notes(text: str) -> list[str]:
       ] },
       "**步驟二：不花錢測試這套邏輯。** 重試和驗證邏輯和真實模型無關，可以用一個『假模型』來測。FakeLLM 照你事先排好的順序，一個一個吐出結果。",
       C(String.raw`# try_fake.py：用「假模型」不花錢地測試重試邏輯。真正的重點是你自己寫的檢查與重試，不是模型
-from datetime import date
+from datetime import date  # date：日期型別
 
-from fishlog.extract import extract_trip
-from fishlog.schema import Catch, Trip
+from fishlog.extract import extract_trip  # extract_trip：讓模型把一篇筆記整理成 Trip，檢查不過會重試
+from fishlog.schema import Catch, Trip  # Catch：一種魚的漁獲資料模型；Trip：一次出釣的資料模型（一篇筆記整理成一個 Trip）
 
 
 class FakeLLM:
     """照事先排好的順序，一個一個吐出結果；同時記下被呼叫了幾次。"""
     name = "fake"
 
+    # __init__：記下要依序回傳的結果（可以是 Trip，也可以是例外），並計算被呼叫了幾次
     def __init__(self, outputs):
         self.outputs = list(outputs)       # 要依序回傳的結果（可以是 Trip，也可以是例外）
         self.calls = 0
 
+    # extract：測試用的假版本。依序吐出事先排好的結果，遇到例外就丟出來
     def extract(self, system, user, schema):
         self.calls += 1
         out = self.outputs.pop(0)          # 拿出下一個預先排好的結果
@@ -644,6 +652,7 @@ class FakeLLM:
             raise out                      # 模擬模型輸出壞掉
         return out
 
+    # text：測試用的假版本。介面要求有這個方法，這裡用不到，隨便回傳短評
     def text(self, system, user):          # 介面要求有 text，這裡用不到，隨便回一個
         return "短評"
 
@@ -675,11 +684,11 @@ print(extract_trip(llm, "筆記", today).date, "呼叫", llm.calls)`),
       "**用假模型測試的好處：** 不花錢、結果固定、毫秒跑完。這是測試 AI 應用的基本功：把『模型的部分』和『你自己寫的邏輯』切開，後者用假的替身去測（正式的測試寫法見 [[fw-11]]）。",
       "**步驟三：用真模型跑六篇。** 把 try_one.py 改成呼叫 `extract_trip`：",
       C(String.raw`# try_one.py（第三版）：改用 extract_trip，自動驗證與重試；一篇失敗不影響其他篇
-from datetime import date
-from dotenv import load_dotenv
+from datetime import date  # date：日期型別
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishlog.extract import extract_trip, split_notes
-from fishlog.llm import get_llm
+from fishlog.extract import extract_trip, split_notes  # extract_trip：讓模型把一篇筆記整理成 Trip，檢查不過會重試；split_notes：把檔案依分隔線切成一篇一篇筆記
+from fishlog.llm import get_llm  # get_llm：依名稱挑出用哪一家模型並回傳模型物件
 
 load_dotenv()
 llm = get_llm()
@@ -710,10 +719,10 @@ for i, note in enumerate(notes, 1):
       "**一個重要的設計原則：AI 負責理解，程式負責計算。** 把口語變成欄位，是 AI 擅長的；把欄位加總、排序、算次數，是程式擅長的，而且保證正確。讓 LLM 直接『幫我算這個月釣了幾隻』，它可能數錯。這個分工之後的專案會一直用到。",
       "**步驟一：寫月報計算，fishlog/report.py。**",
       C(String.raw`# fishlog/report.py
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict  # Counter：計數器，統計每個項目出現幾次；defaultdict：取不到鍵時自動建立預設值的字典
 
-from .llm import LLM
-from .schema import Trip
+from .llm import LLM  # LLM：模型包裝的介面（讓不同供應商可以互換）
+from .schema import Trip  # Trip：一次出釣的資料模型（一篇筆記整理成一個 Trip）
 
 # 原則：AI 負責「理解」（把口語變成欄位），程式負責「計算」（加總、排序、算次數）。
 # 計算交給程式，才保證正確；叫 LLM 去數數字，它可能數錯又不告訴你。
@@ -793,20 +802,21 @@ def commentary(llm: LLM, month: str, trips: list[Trip]) -> str:
             { note: "**為什麼這樣做：** 做成命令列工具而不是每次去改程式裡的檔名，有三個理由：同一份程式可以用不同參數重複執行（換模型、換日期）；第 7 課的評測可以直接用同一個入口；以後要排程自動跑，也只需要呼叫這一行指令。" },
       "**步驟二：寫命令列入口，cli.py（放在專案根目錄）。**",
       C(String.raw`# cli.py
-import argparse
-import json
-from datetime import date
-from pathlib import Path
+import argparse  # argparse：解析命令列參數
+import json  # json：讀寫 JSON
+from datetime import date  # date：日期型別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishlog.evaluate import run_eval
-from fishlog.extract import extract_trip, split_notes
-from fishlog.llm import get_llm
-from fishlog.report import by_month, commentary, render_markdown
-from fishlog.schema import Trip
+from fishlog.evaluate import run_eval  # run_eval：讓模型整理每篇筆記並和標準答案比，回傳各欄位正確率
+from fishlog.extract import extract_trip, split_notes  # extract_trip：讓模型把一篇筆記整理成 Trip，檢查不過會重試；split_notes：把檔案依分隔線切成一篇一篇筆記
+from fishlog.llm import get_llm  # get_llm：依名稱挑出用哪一家模型並回傳模型物件
+from fishlog.report import by_month, commentary, render_markdown  # by_month：依月份分組；commentary：請模型根據算好的資料寫短評；render_markdown：把某個月的統計排成 Markdown
+from fishlog.schema import Trip  # Trip：一次出釣的資料模型（一篇筆記整理成一個 Trip）
 
 
+# main：命令列入口。讀取參數、建立模型、整理每篇筆記，再依月份輸出統計（也可以改跑評測）
 def main():
     load_dotenv()                                   # 把 .env 裡的金鑰讀進環境變數（要在建立模型之前）
 
@@ -858,6 +868,7 @@ if __name__ == "__main__":
     main()`),
       "cli.py 匯入了第 7 課才會寫的 `fishlog/evaluate.py`。為了讓這一課可以先跑，請先建立一個暫時的空殼：",
       C(String.raw`# fishlog/evaluate.py（先放這個，第 7 課會換成完整版）
+# run_eval：先放一個空殼，第 7 課才會真正實作
 def run_eval(*args, **kwargs):
     raise NotImplementedError("第 7 課才實作")`),
       "**步驟三：執行。**",
@@ -937,12 +948,12 @@ python cli.py data/notes.txt --today 2026-11-08 --commentary`),
       ] },
       "**步驟二：寫評分程式，fishlog/evaluate.py（取代第 6 課的空殼）。**",
       C(String.raw`# fishlog/evaluate.py
-import json
-from datetime import date
-from pathlib import Path
+import json  # json：讀寫 JSON
+from datetime import date  # date：日期型別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from .extract import extract_trip, split_notes
-from .llm import LLM
+from .extract import extract_trip, split_notes  # extract_trip：讓模型把一篇筆記整理成 Trip，檢查不過會重試；split_notes：把檔案依分隔線切成一篇一篇筆記
+from .llm import LLM  # LLM：模型包裝的介面（讓不同供應商可以互換）
 
 
 def score_one(trip, gold: dict) -> dict:

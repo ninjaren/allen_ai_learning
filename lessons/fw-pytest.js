@@ -308,7 +308,7 @@ def test_windows_only(): ...
 #   from app.llm import call_llm          # 這裡是『查找名字』的地方（call_llm 是假設的函式名稱）
 #   def answer(q):
 #       return call_llm(q).strip()
-import app.chat
+import app.chat  # app.chat：示範用的應用模組（內含 chat 函式，供測試時替換）
 
 # test_answer：用 monkeypatch 把 call_llm 換成假的，測 answer 會去掉前後空白
 def test_answer(monkeypatch):

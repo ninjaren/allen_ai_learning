@@ -106,7 +106,7 @@ DELETE  /users/42       刪除 42 號使用者`),
       ] },
 
       "**在 Python 用 httpx 呼叫 REST API：**",
-      C(String.raw`import httpx
+      C(String.raw`import httpx  # httpx：HTTP 用戶端（支援同步與非同步）
 
 BASE = "https://jsonplaceholder.typicode.com"
 
@@ -269,7 +269,7 @@ Cookie: session_id=abc123`),
       ] },
 
       "**程式裡自動保存 cookie：**",
-      C(String.raw`import httpx
+      C(String.raw`import httpx  # httpx：HTTP 用戶端（支援同步與非同步）
 
 with httpx.Client() as client:           # 同一個 Client 會自動保存與帶上 cookie
     client.post("https://example.com/login", data={"user": "a", "pw": "b"})
@@ -318,8 +318,8 @@ has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is pres
 on the requested resource.`),
 
       "**在後端設定（以 FastAPI 為例，對應 Python 的 FastAPI 那一課）：**",
-      C(String.raw`from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+      C(String.raw`from fastapi import FastAPI  # FastAPI：建立應用程式物件
+from fastapi.middleware.cors import CORSMiddleware  # CORSMiddleware：設定跨來源存取（CORS）規則
 
 app = FastAPI()
 app.add_middleware(

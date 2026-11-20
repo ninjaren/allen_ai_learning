@@ -231,10 +231,11 @@ specific, actionable feedback on quality, security, and best practices.`),
       ] },
 
       "**範例一：阻擋修改受保護的檔案（用 Python 寫，Windows 友善）。** 官方範例用 bash 加 `jq`，但 Windows 不一定有 `jq`；Python 腳本不用額外裝東西，而且 JSON 解析是內建的。存成 `.claude/hooks/protect_files.py`：",
-      C(String.raw`import json, sys
+      C(String.raw`import json, sys  # json：讀寫 JSON；sys：Python 直譯器相關（參數、路徑）
 
 PROTECTED = (".env", "package-lock.json", ".git/", "migrations/")
 
+# main：hook 腳本，從 stdin 讀事件，路徑符合受保護規則就以結束碼 2 阻擋，否則結束碼 0 放行，輸入無，輸出無
 def main():
     data = json.load(sys.stdin)                                       # Claude Code 把事件資料以 JSON 從 stdin 傳進來
     path = (data.get("tool_input") or {}).get("file_path", "").replace("\\", "/")   # Windows 路徑統一成 /
@@ -276,7 +277,7 @@ main()`),
       "（這個 `args` 加 `${CLAUDE_PROJECT_DIR}` 的寫法，是我依官方文件的 PowerShell 腳本範例推導出來的；官方文件說 Python 沒有專屬章節。我沒有把它載入真正的 Claude Code 工作階段測試。設定後請輸入 `/hooks` 確認有載入，再要求 Claude 改 `.env` 實測會不會被擋。）",
 
       "**範例二：用 JSON 決策擋掉危險的 Bash 指令。** 這個版本結束碼 0 並輸出 JSON，讓理由以結構化的方式回給 Claude：",
-      C(String.raw`import json, re, sys
+      C(String.raw`import json, re, sys  # json：讀寫 JSON；re：正規表達式；sys：Python 直譯器相關（參數、路徑）
 
 DANGEROUS = [r"\brm\s+-rf\b", r"\bdrop\s+table\b", r"git\s+push\s+.*--force"]
 
@@ -515,7 +516,7 @@ claude -p "接著看資料庫查詢" --continue                                 
       ] },
 
       "**用 Python 包裝 `claude -p`**（解析 JSON、檢查失敗）。我用一個假的 `claude`（模擬官方文件描述的輸出欄位）驗證過邏輯，沒有真的呼叫模型：",
-      C(String.raw`import json, subprocess
+      C(String.raw`import json, subprocess  # json：讀寫 JSON；subprocess：執行外部程式
 
 def ask_claude(prompt, *extra, cmd=("claude",), timeout=300):
     """用非互動模式呼叫 claude -p，回傳解析後的結果；失敗時丟出例外"""

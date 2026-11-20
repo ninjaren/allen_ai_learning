@@ -22,7 +22,7 @@ window.LESSON = window.LESSON || {};
       { note: "**本組程式碼都沒有實際執行過**，每段都加了註解；模型名稱是官方範例，不代表推薦，也沒有測過它在中文上的表現。" },
       "**它是什麼（官方 Quickstart）：** Sentence Transformers 是 Hugging Face 生態的嵌入函式庫。官方頁面的核心是『Sentence Transformer（雙編碼器 bi-encoder）』：產生**固定長度的嵌入向量**，輸入可以是文字、圖片、音訊或影片（我們只看文字）。另外還有 Cross Encoder（重排）與 Sparse Encoder（稀疏）（下一課）。官方也建議跑 `hf auth login`，可獲得較高的 Hub 請求頻率上限與存取 gated 模型的權限。",
       "**官方範例（只取文字的部分，註解是我加的）：**",
-      C(String.raw`from sentence_transformers import SentenceTransformer
+      C(String.raw`from sentence_transformers import SentenceTransformer  # SentenceTransformer：載入句子嵌入模型
 
 # 載入嵌入模型（官方範例用的名稱；第一次會從 Hub 下載到快取）
 model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B")
@@ -66,7 +66,7 @@ print(scores)   # 官方說明：關於火星的那句分數最高（約 0.61）
         ["Sparse Encoder（稀疏編碼器）", "產生稀疏向量，輸出維度等於詞彙表大小，多數值是 0", "`naver/splade-cocondenser-ensembledistil`"],
       ] } },
       "**交叉編碼器怎麼用（官方範例的方法名稱是 rank() 與 predict()）：**",
-      C(String.raw`from sentence_transformers import CrossEncoder
+      C(String.raw`from sentence_transformers import CrossEncoder  # CrossEncoder：把查詢與文件一起輸入的重排序模型
 
 # 官方範例的重排模型名稱
 model = CrossEncoder("cross-encoder/stsb-distilroberta-base")
@@ -114,7 +114,7 @@ print(scores)
         ["在你資料上的檢索品質", "自己做檢索評測（命中率等）", "最重要的一項，評測方法見本站 AI 分支『9. Evals 進階』"],
       ] } },
       "**一個最小流程：把文件向量算好存起來，查詢時只算查詢向量（官方方法的組合，沒有執行過）：**",
-      C(String.raw`from sentence_transformers import SentenceTransformer
+      C(String.raw`from sentence_transformers import SentenceTransformer  # SentenceTransformer：載入句子嵌入模型
 
 model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B")   # 官方範例名稱
 
@@ -194,13 +194,14 @@ for i in top:
       ] },
       "**官方範例的 app.py（影像分類，註解是我加的）：**",
       C(String.raw`# app.py：Space 啟動時會執行這個檔案
-import gradio as gr
-from transformers import pipeline
+import gradio as gr  # gradio：快速建立機器學習網頁介面
+from transformers import pipeline  # pipeline：一行建立現成的推論流程
 
 # 載入模型（官方範例：判斷是不是熱狗的影像分類模型）
 # 注意：這一行會在 Space 啟動時下載模型，所以第一次啟動較慢
 pipeline = pipeline(task="image-classification", model="julien-c/hotdog-not-hotdog")
 
+# predict：對輸入圖片跑分類，輸入圖片，輸出（原圖，標籤對應分數的字典）給 Gradio 顯示
 def predict(input_img):
     predictions = pipeline(input_img)
     # 把預測結果整理成 {標籤: 分數} 的字典，給 gr.Label 顯示
@@ -256,7 +257,7 @@ hf upload 你的帳號/my-gradio-space . . --repo-type space
         ["Variable（變數）", "非敏感的設定值，例如模型名稱", "**公開可見**", "會自動加到複製出來的 Space"],
         ["Secret（秘密）", "存取權杖、API 金鑰、憑證", "私有，設定後在設定頁**看不到值**", "不會被帶過去"],
       ] } },
-      C(String.raw`import os
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
 
 # Gradio 類 Space：Variable 與 Secret 都以環境變數形式提供（官方說明）
 model_repo = os.getenv("MODEL_REPO_ID")     # 官方範例的變數名稱
@@ -265,10 +266,10 @@ if api_key is None:
     raise RuntimeError("請到 Space 的 Settings 加入 Secret：MY_API_KEY")`),
       "**內建的環境變數（官方）：** Space 執行時自帶一些，例如 `SPACE_ID`（擁有者/名稱）、`SPACE_HOST`（主機名稱）、`SPACE_AUTHOR_NAME`、`SPACE_REPO_NAME`、`ACCELERATOR`（有哪種加速器，沒有則為 none）、`CPU_CORES`、`MEMORY`。官方特別說明在使用者會複製 Space 時很有用。另有 `SPACE_SIGNING_SECRET`：每個 Space 一個隨機密鑰，重啟與重建後不變，可用來簽署 cookie、OAuth state 或 CSRF token。",
       "**把使用者回饋或日誌存回 Hub：CommitScheduler（官方 upload 指南）。** 因為 Space 的磁碟不持久，如果你想保存使用者輸入、模型輸出、使用者評分，可以定期推到一個資料集倉庫。官方的設計：背景執行緒每隔幾分鐘把本機資料夾提交一次。",
-      C(String.raw`import json
-import uuid
-from pathlib import Path
-from huggingface_hub import CommitScheduler
+      C(String.raw`import json  # json：讀寫 JSON
+import uuid  # uuid：產生唯一識別碼
+from pathlib import Path  # Path：處理檔案路徑的物件
+from huggingface_hub import CommitScheduler  # CommitScheduler：定時把本機資料夾提交到 Hub
 
 # 檔名用 uuid，避免重啟後蓋掉之前的資料，也避免多個副本同時寫同一個檔（官方說明）
 feedback_file = Path("user_feedback/") / f"data_{uuid.uuid4()}.json"
@@ -283,6 +284,7 @@ scheduler = CommitScheduler(
     every=10,
 )
 
+# save_feedback：把使用者回饋追加寫進檔案，用鎖避免多人同時寫入，輸入文字與選項，輸出無
 def save_feedback(text: str, choice: int) -> None:
     # 用 scheduler.lock 避免多個使用者同時寫入（官方範例的做法）
     with scheduler.lock:

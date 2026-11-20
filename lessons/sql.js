@@ -11,7 +11,7 @@ window.LESSON = window.LESSON || {};
       "**SQL** 是跟「關聯式資料庫」說話的語言：資料存成一張張表格（table），每列是一筆資料，每欄是一個屬性。幾乎所有後端、資料分析、AI 應用的記憶與檢索都會用到它。",
 
       "**怎麼練習：用 SQLite。** Python 內建，Windows 不用安裝任何東西。把下面存成 `practice.py` 執行一次，會建立 `practice.db`，之後所有範例都在這組資料上做：",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 
 SETUP = """
 DROP TABLE IF EXISTS orders;
@@ -28,6 +28,7 @@ con = sqlite3.connect("practice.db")
 con.executescript(SETUP)
 con.commit()
 
+# q：執行一段 SQL 並逐列印出結果，輸入 SQL 字串，輸出無
 def q(sql):                        # 之後的範例都用這個小工具執行並印出結果
     for row in con.execute(sql):
         print(row)
@@ -369,13 +370,14 @@ ROLLBACK;      -- 全部取消，回到 BEGIN 之前的狀態`),
       ] },
 
       "**在 Python（sqlite3）裡的標準寫法：** 用 `with` 區塊，區塊正常結束自動 commit，發生例外自動 rollback：",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 
 con = sqlite3.connect("practice.db")
 con.execute("CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY, balance INTEGER NOT NULL CHECK (balance >= 0))")
 con.execute("INSERT OR REPLACE INTO accounts VALUES (1, 500), (2, 100)")
 con.commit()
 
+# transfer：轉帳，扣款與入帳放在同一個交易裡，出錯就整個回復，輸入轉出、轉入帳戶與金額，輸出無
 def transfer(src, dst, amount):
     with con:                                   # 離開區塊時自動 commit，出錯則 rollback
         con.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (amount, src))
@@ -500,7 +502,7 @@ SELECT * FROM orders WHERE id > 100020 ORDER BY id LIMIT 20;`),
       "**SQLite** 是一個「整個資料庫就是一個檔案」的資料庫，不用安裝伺服器，Python 內建。適合：本機工具、小型應用、原型、測試、個人專案。不適合：很多人同時大量寫入的服務。",
 
       "**Python 標準寫法：**",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 
 con = sqlite3.connect("practice.db")       # 檔案不存在會自動建立
 con.row_factory = sqlite3.Row              # 讓結果可以用欄位名稱存取
@@ -554,8 +556,8 @@ docker exec -it pg psql -U postgres        # 進入 PostgreSQL 的命令列`),
 
       "**用 Python 連線（psycopg 3）：**",
       C(String.raw`pip install "psycopg[binary]"`),
-      C(String.raw`import os
-import psycopg
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
+import psycopg  # psycopg：PostgreSQL 連線驅動
 
 # 連線字串放環境變數，不要寫死密碼
 DSN = os.environ["DATABASE_URL"]      # 例如 postgresql://postgres:mysecret@localhost:5432/postgres
@@ -590,12 +592,14 @@ LIMIT 5;`),
 
       "**在 Python 寫入與查詢向量：**",
       C(String.raw`# embedding 是 list[float]，由 embedding 模型產生
+# add_doc：新增一筆文件與它的向量，輸入連線、內容與向量，輸出無
 def add_doc(conn, content, embedding):
     conn.execute(
         "INSERT INTO docs (content, embedding) VALUES (%s, %s::vector)",
         (content, str(embedding)),         # str(list) 會變成 '[0.1, 0.2, ...]' 的格式
     )
 
+# search：用向量距離找最相近的文件，輸入連線、查詢向量與數量 k，輸出（編號，內容，距離）清單
 def search(conn, query_embedding, k=5):
     return conn.execute(
         "SELECT id, content, embedding <=> %s::vector AS distance FROM docs ORDER BY distance LIMIT %s",
@@ -641,7 +645,8 @@ CREATE TABLE messages (
 CREATE INDEX idx_messages_conv ON messages(conversation_id, id);   -- 讀歷史會很頻繁`),
 
       "**Python：存訊息、讀出最近的歷史**",
-      C(String.raw`def save_message(con, conv_id, role, content, in_tok=None, out_tok=None):
+      C(String.raw`# save_message：把一則訊息與用量寫進 messages 資料表，輸入連線、對話編號、角色、內容與 token 數，輸出無
+def save_message(con, conv_id, role, content, in_tok=None, out_tok=None):
     with con:
         con.execute(
             "INSERT INTO messages (conversation_id, role, content, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?)",
@@ -658,7 +663,8 @@ def load_history(con, conv_id, limit=20):
     return [{"role": r[0], "content": r[1]} for r in rows]`),
 
       "**把它接上 LLM（示意）：**",
-      C(String.raw`def chat(con, client, conv_id, user_text):
+      C(String.raw`# chat：存使用者訊息、讀最近歷史、呼叫模型、存回答與用量，輸入連線、用戶端、對話編號與文字，輸出回答
+def chat(con, client, conv_id, user_text):
     save_message(con, conv_id, "user", user_text)
     history = load_history(con, conv_id, limit=20)
 

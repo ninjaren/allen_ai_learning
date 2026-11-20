@@ -103,9 +103,10 @@ export default {
       "**Python 也可以寫 Workers。** 官方文件的現況：Cloudflare Workers 提供『一流的 Python 體驗』，包含套件（官方提到 FastAPI、Pydantic、Langchain 等）、與 JavaScript 物件互通的 FFI、以及所有綁定（KV、D1、R2、Durable Objects、Workers AI、Vectorize、Queues、Workflows 等）。以下全部依官方文件；**我沒有在本機執行 Python Workers**（需要 `uv` 與官方的 `pywrangler` 工具鏈），所以程式碼沒有我的實測輸出。",
       "**最小範例（官方文件）：**",
       C(String.raw`# src/entry.py
-from workers import Response, WorkerEntrypoint
+from workers import Response, WorkerEntrypoint  # Response：Workers 的回應物件；WorkerEntrypoint：Workers 的類別式入口
 
 class Default(WorkerEntrypoint):
+    # fetch：Python Worker 的請求處理，輸入 request，輸出 Response
     async def fetch(self, request):
         return Response("Hello world!")
 

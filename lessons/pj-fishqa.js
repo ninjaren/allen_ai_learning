@@ -90,7 +90,7 @@ Copy-Item -Recurse F:\python_project\real_live\knowledge data\knowledge`),
             { note: "**為什麼這樣做：** 先盤點再動手，是因為資料的長相決定做法：檔案多長、有沒有標題、是不是同一種語言，會直接影響怎麼切、用什麼檢索。另外，專案 1 的 llm.py 是複製過來而不是用 import 指過去，因為兩個專案要各自獨立；以後專案 1 為了別的需求改動，不會不小心弄壞這個專案。" },
       "**第四步：先盤點資料。** 不看資料就開始寫程式，是 RAG 專案最常見的失敗原因。寫一個 inventory.py：",
       C(String.raw`# inventory.py：盤點知識庫。不看資料就開始寫程式，是 RAG 專案最常見的失敗原因
-from pathlib import Path
+from pathlib import Path  # Path：處理檔案路徑的物件
 
 files = sorted(Path("data/knowledge").glob("*.txt"))
 total = 0
@@ -140,9 +140,9 @@ print("有『關鍵字：』行的檔案數：", sum(1 for r in rows if r[3] > 0
       { note: "**白話版：** 要翻書，書得先有目錄和小節。切塊就是把一整份長文件剪成一張一張小卡片，每張卡片講一件事。卡片太大，裡面混了好多話題，找到了也不準；卡片太小，意思被剪斷，看不懂。你的資料本來就有標題，我們就沿著標題剪，並且在每張卡片上寫上它的『標題路徑』，方便搜尋與引用。" },
       "**你現有的做法（scripts/ingest_knowledge.py）：** 以 `##`、`###` 和 `---` 當切割點，每段最多 600 字。它有一個小缺點：卡片上看不到自己屬於哪個標題。例如某張卡片的內容只有『特性：沉底效果好、長時間留底』，沒有任何字說這是在講『粒子餌』。這種卡片在檢索時很吃虧，因為『粒子餌』三個字在標題上，不在卡片裡。",
       "**這一課的改進：沿著標題切，並且把『標題路徑』寫進每張卡片的開頭。**",
-      C(String.raw`import re
-from dataclasses import dataclass
-from pathlib import Path
+      C(String.raw`import re  # re：正規表達式
+from dataclasses import dataclass  # dataclass：用裝飾器快速定義資料類別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
 
 @dataclass
@@ -235,9 +235,9 @@ def load_corpus(folder: str, max_chars: int = 600) -> list[Chunk]:
             { note: "**為什麼這樣做：** 為什麼沿著標題切，而不是每 500 字切一刀？因為模型與檢索都是以『一段』為單位在找答案，一段話講一件事，找到的就是完整的答案；一刀切在中間，可能把答案和它的條件拆到兩邊，找到一半等於沒找到。你的資料本來就整齊分節，不用就浪費了。" },
       "**步驟：寫一個小腳本，看切出來的結果。**",
       C(String.raw`# try_chunk.py：看看切塊的結果，確認切得合理
-import statistics
+import statistics  # statistics：基本統計函式（平均、標準差）
 
-from fishqa.chunking import load_corpus
+from fishqa.chunking import load_corpus  # load_corpus：讀資料夾所有 .txt 並切成段落
 
 chunks = load_corpus("data/knowledge")                 # 切好全部知識檔
 sizes = [len(c.text) for c in chunks]                 # 每張卡片的字數
@@ -292,11 +292,11 @@ print(sample.text)`),
       ] },
       "**中文關鍵字檢索的難題：沒有空格。** 英文可以用空格切詞，中文『浮標突然浮起來』要怎麼切？專業的做法是用斷詞套件，但這裡我們用最簡單的替代：**把相鄰的兩個字當一個詞（bigram）**。『浮標突然』切成『浮標』『標突』『突然』。有一些湊出來的詞沒意義，但真正的詞（『浮標』）一定會出現，而且這招不用裝任何套件。",
       "**步驟一：寫關鍵字檢索，用 BM25 計分。** BM25 是搜尋引擎常用的公式：越少出現的詞越重要（罕見詞加權）、詞出現越多次分數越高（但有上限）、太長的文件稍微扣分。",
-      C(String.raw`import math
-import re
-from collections import Counter
+      C(String.raw`import math  # math：數學函式
+import re  # re：正規表達式
+from collections import Counter  # Counter：計數器，統計每個項目出現幾次
 
-from .chunking import Chunk
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
 
 # 問句裡幾乎每題都有、沒有檢索價值的字，直接略過（否則每張卡片都會因為它們得分）
 STOP = set("的了嗎呢吧是在有要會可以怎麼什麼哪個那個這個一個和與或還是")
@@ -322,6 +322,7 @@ class BM25:
     """BM25：搜尋引擎常用的計分公式。
     越少出現的詞越重要（idf）；詞出現越多次分數越高，但有上限（k1）；太長的文章稍微扣分（b）。"""
 
+    # __init__：記下所有段落與兩個調整參數 k1、b，並為每段統計各個詞出現的次數
     def __init__(self, chunks: list[Chunk], k1: float = 1.5, b: float = 0.75):
         self.chunks = chunks
         self.k1, self.b = k1, b                         # 兩個旋鈕，1.5 與 0.75 是常用預設值
@@ -389,11 +390,11 @@ class BM25:
       ] },
       "**這份問題集是我讀過你的 knowledge 資料夾之後寫的，答案都在資料裡找得到。但請你一定要檢查：** 問題是不是你真的會問的？答案對不對？它是你的資料，你比我清楚。也建議你自己再補 10 題，補的時候專門挑『容易找錯』的：同義詞（『鯔魚』對『烏魚』）、很口語的說法、答案分散在兩節的問題。",
       "**步驟三：寫評測程式。** 兩個指標：命中率（前 k 名裡有沒有找到答案那一節）、MRR（找到的話排第幾名，排越前面分數越高：第 1 名得 1 分、第 2 名得 0.5 分、第 3 名得 0.33 分，再對所有題目取平均）。",
-      C(String.raw`import json
-from pathlib import Path
-from typing import Callable
+      C(String.raw`import json  # json：讀寫 JSON
+from pathlib import Path  # Path：處理檔案路徑的物件
+from typing import Callable  # Callable：標註『可以被呼叫的東西』（函式）
 
-from .chunking import Chunk
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
 
 # 檢索函式的形狀：(問題, k) -> 前 k 個段落。關鍵字、向量、混合檢索都長這樣，所以同一個評測可以量三種
 Retriever = Callable[[str, int], list[Chunk]]
@@ -428,9 +429,9 @@ def run_eval(retrieve: Retriever, questions_path: str, k: int = 5, verbose: bool
       "注意 `is_hit` 只看『最後一層標題加內文』，不看上層標題。如果連上層標題都算，同一章底下的每一節都會被算成命中，分數會虛高。這是設計評測時很容易犯的錯。",
       "**步驟四：跑出基準線。**",
       C(String.raw`# try_keyword.py：只用關鍵字檢索（BM25）跑評測，建立「基準線」
-from fishqa.chunking import load_corpus
-from fishqa.evaluate import run_eval
-from fishqa.keyword import BM25
+from fishqa.chunking import load_corpus  # load_corpus：讀資料夾所有 .txt 並切成段落
+from fishqa.evaluate import run_eval  # run_eval：跑整批題目的評測並回報結果
+from fishqa.keyword import BM25  # BM25：BM25 關鍵字檢索
 
 chunks = load_corpus("data/knowledge")
 bm25 = BM25(chunks)                                   # 建索引：統計每個詞出現在哪些卡片
@@ -487,13 +488,13 @@ k=5  命中率 80%  MRR 0.58`),
             { note: "**為什麼這樣做：** 為什麼嵌入要另外做一層介面，而不是直接在程式裡呼叫 Gemini？因為嵌入模型是這個專案裡最可能換的零件：換模型、換維度、換供應商，都會讓整套向量作廢重算。包一層之後，換的時候只動這一個檔案，其餘程式（檢索、評測、回答）一行都不用改。這和專案 1 包 llm.py 是同樣的道理。" },
       "**步驟一：寫嵌入這一層，fishqa/embed.py。**",
       C(String.raw`"""把文字變成向量。和 llm.py 同樣的做法：包一層介面，換供應商不用改其他程式。"""
-import hashlib
-from pathlib import Path
-from typing import Protocol
+import hashlib  # hashlib：計算雜湊（例如 SHA256）
+from pathlib import Path  # Path：處理檔案路徑的物件
+from typing import Protocol  # Protocol：定義介面（只要有這些方法就算符合）
 
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
-from .chunking import Chunk
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
 
 
 class Embedder(Protocol):
@@ -516,15 +517,17 @@ def normalize(v: np.ndarray) -> np.ndarray:
 
 
 class GeminiEmbedder:
+    # __init__：記下模型名稱、向量維度與批次大小，並建立 Gemini 用戶端
     def __init__(self, model: str = "gemini-embedding-001", dim: int = 768,
                  batch_size: int = 50, **client_kwargs):
-        from google import genai
+        from google import genai  # genai：Google 的 Gemini SDK
         self.name = f"{model}-{dim}"
         self.model, self.dim, self.batch_size = model, dim, batch_size
         self.client = genai.Client(**client_kwargs)          # 讀 GEMINI_API_KEY
 
+    # _embed：內部函式。分批把文字送去嵌入；輸入文字列表與用途標示，回傳向量矩陣
     def _embed(self, texts: list[str], task_type: str) -> np.ndarray:
-        from google.genai import types
+        from google.genai import types  # types：Gemini SDK 的型別定義
         rows: list[list[float]] = []
         for i in range(0, len(texts), self.batch_size):      # 分批送：一次送 50 段，不要一段一個請求
             result = self.client.models.embed_content(
@@ -536,10 +539,12 @@ class GeminiEmbedder:
         # 不是預設的 3072 維時，官方說要自己正規化
         return normalize(np.array(rows))
 
+    # embed_documents：把文件文字轉成向量，標示為『文件』類型，輸入文字清單，輸出向量陣列
     def embed_documents(self, texts):
         # 「文件」與「查詢」分開標示：問題和答案文章的寫法差很多，分開標示讓向量更貼近檢索用途
         return self._embed(texts, "RETRIEVAL_DOCUMENT")
 
+    # embed_query：把查詢轉成向量，標示為『查詢』類型，輸入文字，輸出一條向量
     def embed_query(self, text):
         return self._embed([text], "RETRIEVAL_QUERY")[0]
 
@@ -574,25 +579,28 @@ def embed_chunks_cached(embedder: Embedder, chunks: list[Chunk], cache_dir: str 
       ] },
       "**步驟二：寫向量搜尋，fishqa/store.py 的第一半（記憶體版）。**",
       C(String.raw`# fishqa/store.py（先放這一半，第 5 課再補完整）
-from typing import Protocol
+from typing import Protocol  # Protocol：定義介面（只要有這些方法就算符合）
 
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
-from .chunking import Chunk
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
 
 
 class VectorStore(Protocol):
     """介面：之後換成向量資料庫，只要也有這個 search 方法，其他程式都不用改。"""
+    # search：向量庫的介面。輸入查詢向量與 k；回傳最相近的前 k 筆（編號, 相似度）
     def search(self, qvec: np.ndarray, k: int) -> list[tuple[str, float]]: ...
 
 
 class NumpyStore:
     """最土的做法：全部放記憶體，一次算完所有段落的內積。幾千段以內完全夠用。"""
 
+    # __init__：記下每段的編號與已正規化的向量矩陣
     def __init__(self, chunks: list[Chunk], vecs: np.ndarray):
         self.ids = [c.id for c in chunks]      # 第 i 列向量對應第 i 張卡片的 id
         self.vecs = vecs                       # 已正規化，所以內積就是 cosine 相似度
 
+    # search：把查詢向量對所有段落向量做內積，取分數最高的前 k 個，回傳（編號, 相似度）
     def search(self, qvec, k):
         scores = self.vecs @ qvec              # 向量檢索的本質：507 條向量一次對查詢向量做內積
         top = np.argsort(-scores)[:k]          # 加負號 = 由大到小排序，取前 k 個的位置
@@ -600,36 +608,39 @@ class NumpyStore:
       "核心就一行：`self.vecs @ qvec`。507 條向量一次對查詢向量做內積，得到 507 個分數，取最高的 k 個。這就是向量檢索的本質。**向量資料庫能做的，就是把這件事在百萬、千萬筆資料上做得又快又省。**",
       "**步驟三：先寫 search.py 的雛形，並跑向量檢索的評測。** search.py 的完整版在第 6 課，現在只需要能做 `vector` 這一個方法：",
       C(String.raw`# fishqa/search.py（先放這個簡化版，第 6 課會換成完整版）
-from .chunking import Chunk
-from .embed import Embedder
-from .keyword import BM25
-from .store import VectorStore
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
+from .embed import Embedder  # Embedder：嵌入器介面：任何會轉向量的模型都能換進來
+from .keyword import BM25  # BM25：BM25 關鍵字檢索
+from .store import VectorStore  # VectorStore：向量庫介面
 
 
 class SearchEngine:
     """把不同的檢索方式放在同一個地方，對外的形狀一樣：(問題, k) -> 卡片清單。"""
 
+    # __init__：記下段落、嵌入器與向量庫，並建立 BM25 關鍵字檢索
     def __init__(self, chunks: list[Chunk], embedder: Embedder, store: VectorStore):
         self.by_id = {c.id: c for c in chunks}   # 向量庫只回 id，要靠這張表換回卡片
         self.bm25 = BM25(chunks)
         self.embedder = embedder
         self.store = store
 
+    # keyword：關鍵字檢索。輸入問題與 k；回傳 BM25 排名前 k 的段落
     def keyword(self, query: str, k: int = 5) -> list[Chunk]:
         return [c for c, _ in self.bm25.search(query, k)]
 
+    # vector：向量檢索。輸入問題與 k；先轉成向量、到向量庫找最近的編號，再換回段落
     def vector(self, query: str, k: int = 5) -> list[Chunk]:
         # 問題變成向量 → 在儲存裡找最近的 k 個 id → 換回卡片
         hits = self.store.search(self.embedder.embed_query(query), k)
         return [self.by_id[cid] for cid, _ in hits]`),
       C(String.raw`# try_vector.py：只用向量檢索，跑一遍評測
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishqa.chunking import load_corpus
-from fishqa.embed import GeminiEmbedder, embed_chunks_cached
-from fishqa.evaluate import run_eval
-from fishqa.search import SearchEngine
-from fishqa.store import NumpyStore
+from fishqa.chunking import load_corpus  # load_corpus：讀資料夾所有 .txt 並切成段落
+from fishqa.embed import GeminiEmbedder, embed_chunks_cached  # GeminiEmbedder：用 Gemini 把文字轉成向量的嵌入器；embed_chunks_cached：算段落向量並快取到磁碟，只補算新增或改過的段落
+from fishqa.evaluate import run_eval  # run_eval：跑整批題目的評測並回報結果
+from fishqa.search import SearchEngine  # SearchEngine：把不同檢索方式統一成同一種呼叫
+from fishqa.store import NumpyStore  # NumpyStore：放在記憶體、用 numpy 算相似度的向量庫
 
 load_dotenv()
 chunks = load_corpus("data/knowledge")                      # 1. 切塊
@@ -685,25 +696,28 @@ k=5  命中率 ?%  MRR ?`),
             { note: "**為什麼這樣做：** 為什麼 NumpyStore 與 ChromaStore 要設計成同一個 search 介面？因為這樣評測可以量『同樣的檢索流程，換儲存方式結果有沒有變』。結果應該一樣；如果不一樣，就是你的程式有 bug，而不是方法的差異。這種『換掉一個零件、其他不動、結果應該相同』的驗證，是工程上很實用的除錯手段。" },
       "**步驟：把 store.py 補完整，加上 `ChromaStore`。** 它和 `NumpyStore` 有同一個 `search` 方法，所以 SearchEngine 完全不用改。",
       C(String.raw`"""向量存放與搜尋。兩種實作、同一個介面：search(查詢向量, k) -> [(段落 id, 分數)]"""
-from typing import Protocol
+from typing import Protocol  # Protocol：定義介面（只要有這些方法就算符合）
 
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
-from .chunking import Chunk
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
 
 
 class VectorStore(Protocol):
     """介面：記憶體版與 Chroma 版都長這樣，所以 SearchEngine 不用知道底下是誰。"""
+    # search：向量庫的介面。輸入查詢向量與 k；回傳最相近的前 k 筆（編號, 相似度）
     def search(self, qvec: np.ndarray, k: int) -> list[tuple[str, float]]: ...
 
 
 class NumpyStore:
     """最土的做法：全部放記憶體，一次算完所有段落的內積。幾千段以內完全夠用。"""
 
+    # __init__：記下每段的編號與已正規化的向量矩陣
     def __init__(self, chunks: list[Chunk], vecs: np.ndarray):
         self.ids = [c.id for c in chunks]
         self.vecs = vecs                       # 已正規化，所以內積就是 cosine 相似度
 
+    # search：把查詢向量對所有段落向量做內積，取分數最高的前 k 個，回傳（編號, 相似度）
     def search(self, qvec, k):
         scores = self.vecs @ qvec              # 向量檢索的本質：所有段落一次對查詢向量做內積
         top = np.argsort(-scores)[:k]          # 加負號 = 由大到小排序，取前 k 個的位置
@@ -713,8 +727,9 @@ class NumpyStore:
 class ChromaStore:
     """換成向量資料庫：存在磁碟，重開機還在，可以帶 metadata、可以過濾。"""
 
+    # __init__：開啟（或建立）存在磁碟的 Chroma 資料庫，並記下集合名稱
     def __init__(self, path: str, name: str = "fishing_qa"):
-        import chromadb
+        import chromadb  # chromadb：Chroma 向量資料庫
         self.client = chromadb.PersistentClient(path=path)    # 資料存在這個資料夾，重開程式還在
         self.name = name
         # hnsw:space = cosine：用 cosine 距離比較向量
@@ -750,11 +765,11 @@ class ChromaStore:
       ] },
       "**步驟：驗證兩種儲存的結果一致。** 兩邊吃同一批向量、用同一個查詢，前幾名應該完全一樣：",
       C(String.raw`# try_chroma.py：驗證記憶體版與 Chroma 版的搜尋結果一致
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishqa.chunking import load_corpus
-from fishqa.embed import GeminiEmbedder, embed_chunks_cached
-from fishqa.store import ChromaStore, NumpyStore
+from fishqa.chunking import load_corpus  # load_corpus：讀資料夾所有 .txt 並切成段落
+from fishqa.embed import GeminiEmbedder, embed_chunks_cached  # GeminiEmbedder：用 Gemini 把文字轉成向量的嵌入器；embed_chunks_cached：算段落向量並快取到磁碟，只補算新增或改過的段落
+from fishqa.store import ChromaStore, NumpyStore  # ChromaStore：存在磁碟的 Chroma 向量庫；NumpyStore：放在記憶體、用 numpy 算相似度的向量庫
 
 load_dotenv()
 chunks = load_corpus("data/knowledge")
@@ -796,10 +811,10 @@ print("過濾後:", chroma.search(qvec, 2, where={"source": "iso_rod_numbers.txt
       "**怎麼合併兩份名單？** 關鍵字給的是 BM25 分數（可能是 0 到 30），向量給的是相似度（0 到 1），尺度完全不同，不能直接相加。常用的辦法是 **RRF（Reciprocal Rank Fusion，倒數排名融合）：不看分數，只看名次。** 每份名單裡排第 r 名的卡片得 1/(60 + r) 分，各份加起來，總分高的排前面。",
             { note: "**為什麼這樣做：** 為什麼三種方法都要量，而不是直接用你認為最好的？因為你認為最好的不一定真的最好。向量檢索在你的資料上可能比關鍵字差，也可能好很多，只有量過才知道。而且知道每種方法擅長什麼，之後遇到新問題才知道該調哪個旋鈕。" },
       "**步驟：寫完整的 search.py，取代第 4 課的簡化版。**",
-      C(String.raw`from .chunking import Chunk
-from .embed import Embedder
-from .keyword import BM25
-from .store import VectorStore
+      C(String.raw`from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
+from .embed import Embedder  # Embedder：嵌入器介面：任何會轉向量的模型都能換進來
+from .keyword import BM25  # BM25：BM25 關鍵字檢索
+from .store import VectorStore  # VectorStore：向量庫介面
 
 
 def rrf(rank_lists: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
@@ -815,6 +830,7 @@ def rrf(rank_lists: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
 class SearchEngine:
     """把三種檢索方式放在同一個地方，對外的形狀都一樣：(問題, k) -> 卡片清單。"""
 
+    # __init__：記下段落、嵌入器與向量庫，並建立 BM25 關鍵字檢索
     def __init__(self, chunks: list[Chunk], embedder: Embedder, store: VectorStore):
         self.by_id = {c.id: c for c in chunks}               # id -> 卡片，向量庫只回 id，要靠它換回卡片
         self.bm25 = BM25(chunks)
@@ -843,13 +859,13 @@ class SearchEngine:
       ] },
       "**步驟：用同一份問題集比較三種做法。** 修改 ask.py 的評測部分（完整的 ask.py 在下一課），或寫一個簡單的比較腳本：",
       C(String.raw`# compare.py：用同一份問題集，把三種檢索方式各量一次，填進總表
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishqa.chunking import load_corpus
-from fishqa.embed import GeminiEmbedder, embed_chunks_cached
-from fishqa.evaluate import run_eval
-from fishqa.search import SearchEngine
-from fishqa.store import NumpyStore
+from fishqa.chunking import load_corpus  # load_corpus：讀資料夾所有 .txt 並切成段落
+from fishqa.embed import GeminiEmbedder, embed_chunks_cached  # GeminiEmbedder：用 Gemini 把文字轉成向量的嵌入器；embed_chunks_cached：算段落向量並快取到磁碟，只補算新增或改過的段落
+from fishqa.evaluate import run_eval  # run_eval：跑整批題目的評測並回報結果
+from fishqa.search import SearchEngine  # SearchEngine：把不同檢索方式統一成同一種呼叫
+from fishqa.store import NumpyStore  # NumpyStore：放在記憶體、用 numpy 算相似度的向量庫
 
 load_dotenv()
 chunks = load_corpus("data/knowledge")
@@ -900,10 +916,10 @@ for mode in ("keyword", "vector", "hybrid"):
       { note: "**白話版：** 翻書翻準了，最後一步是請模型『看這幾頁回答』。關鍵有三件事：請它每句話都註明是看哪一頁、書裡沒寫就老實說沒有（不要用自己的知識亂補）、而且就算書頁裡夾了一張『請你做別的事』的紙條也不要理它。這一課就是把這三件事寫成程式與規則。" },
             { note: "**為什麼這樣做：** 為什麼把產生答案放在最後才做？因為檢索是根基：找不對資料，模型再強也只能對著錯的資料回答，甚至編一個聽起來合理的答案。先把檢索量到夠好，後面的問題才是回答品質的問題；否則答案不準時，你分不清是檢索錯還是模型錯，兩邊都得查。" },
       "**步驟一：寫回答層，fishqa/answer.py。**",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
-from .chunking import Chunk
-from .llm import LLM
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
+from .llm import LLM  # LLM：模型包裝的介面（讓不同供應商可以互換）
 
 # 拒答用語要固定：程式才能用 in 判斷模型有沒有拒答；模型若換句話說，就會漏掉
 NO_ANSWER = "知識庫裡沒有這個資訊"
@@ -950,17 +966,17 @@ def answer(llm: LLM, question: str, chunks: list[Chunk]) -> dict:
       ] } },
       "**`check_citations` 在做什麼？** 模型偶爾會寫出不存在的編號，例如只給了 4 段資料卻引用 [9]。這個函式把回答裡所有 `[數字]` 抓出來，檢查是否落在 1 到 資料段數之間，有問題就回報警告。**這是很便宜、很有用的一道自動檢查。** 它不能保證『內容真的出自那一段』，只能抓到編號根本不存在的假引用。",
       "**步驟二：寫問答入口 ask.py。**",
-      C(String.raw`import argparse
+      C(String.raw`import argparse  # argparse：解析命令列參數
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishqa.answer import answer
-from fishqa.chunking import load_corpus
-from fishqa.embed import GeminiEmbedder, embed_chunks_cached
-from fishqa.evaluate import run_eval
-from fishqa.llm import get_llm
-from fishqa.search import SearchEngine
-from fishqa.store import ChromaStore
+from fishqa.answer import answer  # answer：請模型根據檢索到的段落回答問題
+from fishqa.chunking import load_corpus  # load_corpus：讀資料夾所有 .txt 並切成段落
+from fishqa.embed import GeminiEmbedder, embed_chunks_cached  # GeminiEmbedder：用 Gemini 把文字轉成向量的嵌入器；embed_chunks_cached：算段落向量並快取到磁碟，只補算新增或改過的段落
+from fishqa.evaluate import run_eval  # run_eval：跑整批題目的評測並回報結果
+from fishqa.llm import get_llm  # get_llm：依名稱挑出用哪一家模型並回傳模型物件
+from fishqa.search import SearchEngine  # SearchEngine：把不同檢索方式統一成同一種呼叫
+from fishqa.store import ChromaStore  # ChromaStore：存在磁碟的 Chroma 向量庫
 
 
 def build_engine() -> SearchEngine:
@@ -974,6 +990,7 @@ def build_engine() -> SearchEngine:
     return SearchEngine(chunks, embedder, store)
 
 
+# main：命令列入口。讀取問題與參數，建立檢索與模型並回答問題（加 --eval 時改跑評測）
 def main():
     load_dotenv()
     p = argparse.ArgumentParser(description="釣魚知識問答")
@@ -1029,11 +1046,11 @@ python ask.py "鯊魚的鋼線釣組要怎麼綁？"
       "第 2 種我確認過：你的 knowledge 資料夾沒有任何檔案提到『鯊』字，所以這題正確的行為就是拒答。但要注意：檢索仍會回傳『看起來有點像』的段落（因為關鍵字或向量總是會找出最近的幾段），拒不拒答是模型根據這些段落判斷的。**所以拒答的品質，取決於你的提示詞與模型，要實測。**",
       "**第 3 種的做法：寫一個小實驗，偷偷塞一段有毒的資料。**",
       C(String.raw`# try_injection.py：故意塞一段有毒的資料，看模型會不會被資料裡的指令帶走
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
 
-from fishqa.answer import answer
-from fishqa.chunking import Chunk
-from fishqa.llm import get_llm
+from fishqa.answer import answer  # answer：請模型根據檢索到的段落回答問題
+from fishqa.chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
+from fishqa.llm import get_llm  # get_llm：依名稱挑出用哪一家模型並回傳模型物件
 
 load_dotenv()
 # 一張偽造的卡片：看起來是知識，但最後一句是夾帶的惡意指令

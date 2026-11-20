@@ -17,7 +17,7 @@ window.LESSON = window.LESSON || {};
 
       "**實際看一看：** 用 `tiktoken`（OpenAI 的 tokenizer）把文字切開：",
       C(String.raw`pip install tiktoken`),
-      C(String.raw`import tiktoken
+      C(String.raw`import tiktoken  # tiktoken：計算文字有幾個 token
 
 enc = tiktoken.get_encoding("cl100k_base")
 
@@ -37,7 +37,7 @@ for text in ["Hello, how are you today?", "你好，今天過得好嗎？", "def
       "可以看出：**英文一個 token 通常涵蓋好幾個字元，中文常常一個字就不只一個 token**，所以同樣的意思，中文通常比英文花更多 token（實際比例依模型的 tokenizer 而定）。粗略的估算：英文約 4 個字元 ≈ 1 個 token。",
 
       "**不同模型的 tokenizer 不一樣**，同一段文字在不同模型算出的 token 數不同。要算 Claude 的 token 數，用 Anthropic 官方的計數功能：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 client = anthropic.Anthropic()
 
 result = client.messages.count_tokens(
@@ -84,6 +84,7 @@ print(message.usage.input_tokens, message.usage.output_tokens)`),
     return msgs
 
 # count 函式可以用官方的計數功能
+# count：呼叫 API 數訊息有幾個 token，輸入訊息清單，輸出 token 數
 def count(msgs):
     return client.messages.count_tokens(model="claude-sonnet-5-5", messages=msgs).input_tokens
 
@@ -114,8 +115,9 @@ short = trim_history(history, max_tokens=8000, count=count)`),
       "模型每產生一個 token，其實是先算出「每個可能的下一個 token 的機率」，再依規則**抽一個**。取樣參數就是控制這個「怎麼抽」的旋鈕。先搞懂原理，再看你的服務能不能調。",
 
       "**temperature（溫度）：** 調整機率分佈的「尖銳程度」。我們用一個小例子看效果（下一個字可能是貓、狗、魚、鳥）：",
-      C(String.raw`import math
+      C(String.raw`import math  # math：數學函式
 
+# softmax_t：帶溫度 T 的 softmax，T 越大分布越平，輸入分數清單與 T，輸出機率清單
 def softmax_t(logits, T):
     scaled = [x / T for x in logits]
     m = max(scaled)
@@ -221,12 +223,14 @@ if message.stop_reason == "max_tokens":
 如果資料裡沒有答案，請只回答「我在資料中找不到這個資訊」，不要自己推測或補充。
 回答時請附上你引用的資料編號，例如 [2]。"""
 
+# build_user_message：把參考資料編號後和問題組成一則訊息，輸入問題與資料清單，輸出文字
 def build_user_message(question, docs):
     ref = "\n".join(f"[{i + 1}] {d}" for i, d in enumerate(docs))
     return f"【參考資料】\n{ref}\n\n【問題】\n{question}"`),
 
       "**用程式驗證引用：** 不要完全相信模型說「我引用了第 2 筆」，檢查它引用的句子是否真的出現在原文：",
-      C(String.raw`def quote_exists(quote: str, source: str) -> bool:
+      C(String.raw`# quote_exists：檢查模型引用的句子是否真的出現在原文，輸入引文與原文，輸出 True 或 False
+def quote_exists(quote: str, source: str) -> bool:
     return quote.strip() in source
 
 # 模型回答中的引文若不在原始資料裡，就是幻覺，要捨棄或要求重答`),
@@ -273,6 +277,7 @@ MODELS = {
     "best":     "claude-opus-5-5",      # 困難推理、複雜任務
 }
 
+# ask：依等級（tier）挑模型呼叫，輸入提示詞與等級，輸出文字
 def ask(prompt, tier="balanced"):
     message = client.messages.create(
         model=MODELS[tier],
@@ -391,7 +396,7 @@ answer = ask(question, tier="best" if "hard" in level else "balanced")`),
       C(String.raw`softmax(Q × Kᵀ / √d) × V`),
 
       "**用 numpy 看一次完整的計算**（3 個 token，每個 4 維，權重是隨機的，只為了示範流程）：",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
 np.random.seed(0)
 X = np.random.randn(3, 4)                    # 3 個 token，每個 4 維的向量
@@ -400,6 +405,7 @@ Wq, Wk, Wv = (np.random.randn(4, 4) for _ in range(3))   # 模型學到的轉換
 Q, K, V = X @ Wq, X @ Wk, X @ Wv
 scores = Q @ K.T / np.sqrt(K.shape[1])       # 每個 token 對每個 token 的關注度分數（3x3）
 
+# softmax_rows：對矩陣每一列做 softmax（先減最大值避免溢位），輸入矩陣，輸出同形狀的機率矩陣
 def softmax_rows(a):
     a = a - a.max(axis=1, keepdims=True)
     e = np.exp(a)

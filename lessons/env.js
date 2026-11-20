@@ -16,7 +16,7 @@ window.LESSON = window.LESSON || {};
       ] },
 
       "**在程式裡讀取：**",
-      C(String.raw`import os
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
 
 key = os.environ["ANTHROPIC_API_KEY"]            # 沒設定會丟出 KeyError
 key = os.environ.get("ANTHROPIC_API_KEY")        # 沒設定回傳 None
@@ -45,8 +45,8 @@ ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
 DATABASE_URL=postgresql://user:pass@localhost:5432/mydb
 LOG_LEVEL=debug`),
       C(String.raw`# Python：pip install python-dotenv
-from dotenv import load_dotenv
-import os
+from dotenv import load_dotenv  # load_dotenv：把 .env 裡的設定讀進環境變數
+import os  # os：作業系統功能（路徑、環境變數）
 
 load_dotenv()                                  # 把 .env 的內容載入環境變數
 key = os.environ["ANTHROPIC_API_KEY"]`),
@@ -59,8 +59,9 @@ node --env-file=.env app.js`),
       ] },
 
       "**啟動時先檢查，缺了就清楚告訴使用者：**",
-      C(String.raw`import os
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
 
+# require_env：讀環境變數，沒設就印出訊息並結束程式，輸入變數名，輸出字串值
 def require_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:

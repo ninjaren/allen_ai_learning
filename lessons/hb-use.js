@@ -34,7 +34,7 @@ window.LESSON = window.LESSON || {};
         "**預設會檢查更新：** 官方環境變數頁說明，即使最新檔案已經在快取，`hf_hub_download` 仍會發一次 HTTP 請求確認有沒有新版；設 `HF_HUB_OFFLINE=1` 會略過它，載入更快。",
       ] },
       "**實用流程一：先在有網路的地方預先下載，之後離線使用。**",
-      C(String.raw`from huggingface_hub import snapshot_download
+      C(String.raw`from huggingface_hub import snapshot_download  # snapshot_download：把整個模型倉庫下載到本機
 
 # 步驟 1：在有網路的機器上，把需要的檔案先下載到快取（只要 safetensors 與設定檔）
 # 模型名稱是官方文件範例，不代表推薦
@@ -76,8 +76,8 @@ snapshot_download(
       ] } },
       "**我的說明：** 以上字串在 Hub 的篩選與 pipeline 的範例中是同樣的寫法，但**我沒有核對過兩邊的完整對照表**，所以遇到沒見過的任務時，請以官方 Pipeline 文件列出的任務清單為準。",
       "**一個最小流程：從標籤找模型，再用 pipeline 跑它。**",
-      C(String.raw`from huggingface_hub import HfApi
-from transformers import pipeline
+      C(String.raw`from huggingface_hub import HfApi  # HfApi：操作 Hugging Face Hub 的用戶端
+from transformers import pipeline  # pipeline：一行建立現成的推論流程
 
 # 步驟 1：在 Hub 上找『文字分類』任務、依下載量排序的前 3 個模型
 api = HfApi()
@@ -111,7 +111,7 @@ print(clf("I love this product"))   # 輸出格式依任務與版本而定，這
       { note: "**本組程式碼都沒有實際執行過**，每段都加了註解。官方 Datasets 文件頁當時標示的版本是 v5.2.0。" },
       "**安裝（官方 Quickstart）：** `pip install datasets`。要處理音訊或影像要裝額外功能：`pip install datasets[audio]`、`pip install datasets[vision]`。另外要裝你要用的機器學習框架（如 PyTorch）。",
       "**載入 Hub 上的資料集（官方範例）：**",
-      C(String.raw`from datasets import load_dataset
+      C(String.raw`from datasets import load_dataset  # load_dataset：載入 Hugging Face 資料集
 
 # 名稱 加 config（資料集內的子設定，不是每個資料集都有）加 split（要哪一部分）
 # 這個資料集與設定是官方 Quickstart 的範例：判斷兩個句子意思是否相同
@@ -130,7 +130,7 @@ print(dataset.features)`),
         ["features", "每個欄位的型別（字串、整數、類別標籤、音訊、影像）", "`Value('string')`、`ClassLabel(...)`"],
       ] } },
       "**載入本機檔案：** 同一個函式可以載入本機的 CSV、JSON、Parquet 等（官方 Stream 頁示範了 json）：",
-      C(String.raw`from datasets import load_dataset
+      C(String.raw`from datasets import load_dataset  # load_dataset：載入 Hugging Face 資料集
 
 # 第一個參數是格式名稱（官方範例用 json），data_files 指定檔案；* 可以匹配多個檔案
 # 這個路徑是官方範例的路徑，換成你自己的
@@ -149,8 +149,8 @@ dataset = load_dataset("json", data_files=data_files, split="train")`),
       { note: "**學會這個可以做什麼：** 你會用 `map`、`filter`、`rename_column`、`with_format` 把資料整理成模型能吃的樣子，並知道為什麼批次處理（`batched=True`）比逐筆快。" },
       { note: "**白話版：** 資料集像一張表。處理就是『對每一列做一件事』（`map`）、『挑出某些列』（`filter`）、『改欄位名稱』，最後告訴它『轉成 PyTorch 能用的格式』。" },
       "**一條完整的文字處理流程（改寫自官方 Quickstart 的 NLP 範例）：**",
-      C(String.raw`from datasets import load_dataset
-from transformers import AutoTokenizer
+      C(String.raw`from datasets import load_dataset  # load_dataset：載入 Hugging Face 資料集
+from transformers import AutoTokenizer  # AutoTokenizer：依模型名稱自動載入對應的 tokenizer
 
 # 步驟 1：載入資料（兩個句子是否同義）
 dataset = load_dataset("nyu-mll/glue", "mrpc", split="train")
@@ -169,7 +169,7 @@ dataset = dataset.map(encode, batched=True)
 
 # 官方說明：分詞器會新增 input_ids、token_type_ids、attention_mask 三欄，那是模型的輸入`),
       "**改欄位名稱、選欄位、轉格式：**",
-      C(String.raw`import torch
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
 
 # 模型的 forward 期望欄位叫 labels，所以把原本的 label 改名（官方範例用 map 達到，也可用 rename_column）
 dataset = dataset.rename_column("label", "labels")
@@ -204,7 +204,7 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=32)`),
       { note: "**學會這個可以做什麼：** 你會用串流（streaming）處理『大到下載不下』或『只想先看幾筆』的資料集，並知道串流版資料集有哪些限制。" },
       { note: "**白話版：** 串流像『看影片不用先下載完』：資料一邊讀一邊給你，不需要先放進硬碟。代價是你只能『從頭一筆一筆往下走』，不能隨意跳到第 100 萬筆。" },
       "**怎麼開啟（官方 Stream 頁）：** 在 `load_dataset` 設 `streaming=True`。官方用的例子是 `HuggingFaceFW/fineweb` 的英文部分，**大小 45 TB，但串流可以立刻開始用**：",
-      C(String.raw`from datasets import load_dataset
+      C(String.raw`from datasets import load_dataset  # load_dataset：載入 Hugging Face 資料集
 
 # streaming=True：不下載，邊走邊讀。官方用 45 TB 的資料集示範
 dataset = load_dataset("HuggingFaceFW/fineweb", split="train", streaming=True)
@@ -266,7 +266,7 @@ dataset.push_to_hub("你的帳號/my_dataset")
 dataset.push_to_hub("你的帳號/my_dataset", num_proc=8)
 
 # 之後在任何地方用名稱載入
-from datasets import load_dataset
+from datasets import load_dataset  # load_dataset：載入 Hugging Face 資料集
 reloaded = load_dataset("你的帳號/my_dataset")`),
       "**匯出成其他格式（官方）：**",
       { table: { head: ["格式", "方法"], rows: [
@@ -277,7 +277,7 @@ reloaded = load_dataset("你的帳號/my_dataset")`),
         ["記憶體中的物件", "`to_pandas()`、`to_polars()`、`to_dict()`"],
       ] } },
       "**合併多個資料集（官方 Stream 頁）：**",
-      C(String.raw`from datasets import concatenate_datasets, interleave_datasets
+      C(String.raw`from datasets import concatenate_datasets, interleave_datasets  # concatenate_datasets：把多個資料集接在一起；interleave_datasets：把多個資料集交錯混合
 
 # 欄位型別一致的資料集可以垂直接起來（官方範例是兩個文字資料集只留 text 欄位）
 combined = concatenate_datasets([stories, wiki])   # stories 與 wiki 是之前載入的資料集
@@ -313,8 +313,8 @@ mixed = interleave_datasets([es_dataset, fr_dataset], probabilities=[0.8, 0.2], 
       "**第一步：建立對的 token（官方）：** 建一把 fine-grained token，勾選 Make calls to Inference Providers 權限（第 1 組第 2 課）。放在環境變數 `HF_TOKEN`。",
       "**方式一：官方客戶端（huggingface_hub 的 InferenceClient）：**",
       C(String.raw`# 先安裝並登入： pip install huggingface_hub ； hf auth login
-import os
-from huggingface_hub import InferenceClient
+import os  # os：作業系統功能（路徑、環境變數）
+from huggingface_hub import InferenceClient  # InferenceClient：呼叫 Hub 上推論服務的用戶端
 
 client = InferenceClient()   # 會自動讀登入的 token 或環境變數 HF_TOKEN
 
@@ -325,8 +325,8 @@ completion = client.chat.completions.create(
 )
 print(completion.choices[0].message)`),
       "**方式二：用 OpenAI 的 Python 套件，只換網址與金鑰（官方）：**",
-      C(String.raw`import os
-from openai import OpenAI
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
+from openai import OpenAI  # OpenAI：OpenAI 的用戶端
 
 # base_url 指向 Hugging Face 的路由端點，api_key 用你的 HF token
 client = OpenAI(
@@ -341,8 +341,8 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)`),
       "**方式三：直接送 HTTP（官方）：** 網址是 `https://router.huggingface.co/v1/chat/completions`，標頭帶 `Authorization: Bearer 你的 token`，內容是和 OpenAI 一樣的 JSON。適合沒有客戶端函式庫的環境或除錯。",
       "**不只聊天：** 官方首頁的第二個範例是文字生圖，用客戶端 `text_to_image`：",
-      C(String.raw`import os
-from huggingface_hub import InferenceClient
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
+from huggingface_hub import InferenceClient  # InferenceClient：呼叫 Hub 上推論服務的用戶端
 
 client = InferenceClient(api_key=os.environ["HF_TOKEN"])
 
@@ -377,8 +377,8 @@ image.save("generated_image.png")   # 存成檔案`),
         ["`:preferred`", "照你在 Hub 的 Inference Provider 設定頁排的偏好順序，選第一個可用的"],
         ["`:供應商名稱`", "例如 `openai/gpt-oss-120b:groq`，強制指定這一家"],
       ] } },
-      C(String.raw`import os
-from openai import OpenAI
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
+from openai import OpenAI  # OpenAI：OpenAI 的用戶端
 
 client = OpenAI(base_url="https://router.huggingface.co/v1", api_key=os.environ["HF_TOKEN"])
 
@@ -390,8 +390,8 @@ for suffix in [":fastest", ":cheapest", ":groq"]:
     )
     print(suffix, r.choices[0].message.content)`),
       "**用客戶端時的寫法（官方）：** 預設 `provider=\"auto\"`，等同 `:fastest`；也可以明寫供應商名稱。官方說明用客戶端時，各供應商之間 HTTP 請求格式的差異會由客戶端自動處理：",
-      C(String.raw`from huggingface_hub import InferenceClient
-import os
+      C(String.raw`from huggingface_hub import InferenceClient  # InferenceClient：呼叫 Hub 上推論服務的用戶端
+import os  # os：作業系統功能（路徑、環境變數）
 
 client = InferenceClient(token=os.environ["HF_TOKEN"])
 
@@ -440,7 +440,7 @@ result = client.chat_completion(
       ] } },
       "**HF Inference（Hugging Face 自己的供應商）：** 官方說明它就是以前的『Inference API (serverless)』，使用者看來與其他供應商一樣；額度用完後，依『運算時間乘以硬體單價』計費。官方範例：一個請求在每秒 0.00012 美元的 GPU 上跑 10 秒，費用是 0.0012 美元。**官方並說明截至 2025 年 7 月，它主要做 CPU 推論**，例如嵌入、文字排序、文字分類，或 BERT、GPT-2 這類較小的老模型。",
       "**組織帳單（官方）：** Team 與 Enterprise 的成員各自用自己的 token，但可以用 `X-HF-Bill-To` 標頭（或客戶端的 `bill_to` 參數）把費用記到組織。個人用不到。",
-      C(String.raw`from huggingface_hub import InferenceClient
+      C(String.raw`from huggingface_hub import InferenceClient  # InferenceClient：呼叫 Hub 上推論服務的用戶端
 
 # 官方範例：把費用記到組織帳上（只有 Team 或 Enterprise 才用得到；組織名稱是範例）
 client = InferenceClient(bill_to="my-org-name")`),

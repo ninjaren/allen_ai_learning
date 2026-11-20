@@ -61,6 +61,7 @@ def classify(text):
         return "負面"
     return "中性"
 
+# run：最簡單的評測迴圈，逐題呼叫 classify 比對標準答案，印出失敗題與通過率，輸入題目清單，輸出無
 def run(cases):
     passed = 0
     for c in cases:
@@ -122,15 +123,17 @@ run(CASES)       # 通過 3/3 = 100%`),
       ] },
 
       "**讀寫、統計、切分的小工具：**",
-      C(String.raw`import hashlib
-import json
-from collections import Counter
+      C(String.raw`import hashlib  # hashlib：計算雜湊（例如 SHA256）
+import json  # json：讀寫 JSON
+from collections import Counter  # Counter：計數器，統計每個項目出現幾次
 
+# save_cases：把題目寫成 JSONL（一行一題），輸入題目清單與路徑，輸出無
 def save_cases(cases, path):
     with open(path, "w", encoding="utf-8") as f:
         for c in cases:
             f.write(json.dumps(c, ensure_ascii=False) + "\n")     # ensure_ascii=False：中文才不會被轉成 \uXXXX
 
+# load_cases：從 JSONL 檔讀回題目，輸入路徑，輸出題目清單
 def load_cases(path):
     cases = []
     with open(path, encoding="utf-8") as f:
@@ -140,6 +143,7 @@ def load_cases(path):
                 cases.append(json.loads(line))
     return cases
 
+# describe：印出總題數、標準答案分布與情境標籤分布，看資料集是否失衡，輸入題目清單，輸出無
 def describe(cases):
     print("總題數：", len(cases))
     print("標準答案分布：", dict(Counter(c["expected"] for c in cases)))
@@ -185,8 +189,8 @@ test = [c for c in cases if not is_dev(c)]      # 要做重大決定（換模型
       "這一課處理前兩種：**程式比對**與**人工檢查**。",
 
       "**常用的程式檢查函式：**",
-      C(String.raw`import json
-import re
+      C(String.raw`import json  # json：讀寫 JSON
+import re  # re：正規表達式
 
 def exact(out, case):                 # 完全相同
     return out.strip() == case["expected"]
@@ -212,7 +216,8 @@ def close(out, case, tol=0.01):       # 數字在誤差範圍內
       "每個檢查函式都是「輸入模型輸出與題目，回傳 `True` / `False`」，之後要換成別種檢查（包含 LLM 評審）都不用改評測流程。",
 
       "**評測流程：** 對每題呼叫系統、檢查、統計。`repeats` 讓同一題重複跑多次，應付輸出的隨機性：",
-      C(String.raw`def run_eval(cases, ask, check, repeats=1):
+      C(String.raw`# run_eval：對每題跑 ask 並用 check 判定，可重複多次，輸入題目、被評測的函式、判定函式與次數，輸出每題的通過率與輸出
+def run_eval(cases, ask, check, repeats=1):
     results = []
     for case in cases:
         outputs, passes = [], 0
@@ -224,6 +229,7 @@ def close(out, case, tol=0.01):       # 數字在誤差範圍內
                         "outputs": outputs, "tags": case.get("tags", [])})
     return results
 
+# summarize：印出整體與各標籤的通過率並列出沒全過的題，輸入評測結果，輸出整體通過率
 def summarize(results):
     overall = sum(r["pass_rate"] for r in results) / len(results)
     by_tag = {}
@@ -252,8 +258,9 @@ summarize(results)`),
       "**這就是評測的威力：** 典型題 100%，邊界題只有 33%，而且立刻知道是「反諷」和「混合情緒」兩類出問題。光看「整體 67%」看不出這些，所以一定要**依標籤分類**統計。",
 
       "**分類任務加看「混淆矩陣」：** 看模型把哪一類錯認成哪一類：",
-      C(String.raw`from collections import Counter
+      C(String.raw`from collections import Counter  # Counter：計數器，統計每個項目出現幾次
 
+# confusion：統計（標準答案，預測）各出現幾次，輸入題目與預測，輸出計數器
 def confusion(cases, preds):
     return Counter((c["expected"], p) for c, p in zip(cases, preds))
 
@@ -271,8 +278,9 @@ for (expected, got), n in confusion(cases, preds).items():
         "**4. 把發現的新情境加進資料集**",
       ] },
       "輸出成 CSV 給人工標記最方便。Windows 的 Excel 要用 `utf-8-sig` 才不會中文亂碼：",
-      C(String.raw`import csv
+      C(String.raw`import csv  # csv：讀寫 CSV
 
+# export_for_review：把評測結果匯出成 CSV 供人工檢視與標錯誤類型，輸入結果、題目與路徑，輸出無
 def export_for_review(results, cases, path):
     by_id = {c["id"]: c for c in cases}
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
@@ -333,19 +341,21 @@ export_for_review(results, cases, "review.csv")`),
 
 請先用一兩句話寫出理由，再給分。只輸出 JSON，格式：{"reason": "...", "score": 整數}"""
 
+# build_judge_prompt：把問題、參考答案與待評答案填進評審提示詞，輸入三段文字，輸出完整提示詞
 def build_judge_prompt(question, reference, answer):
     # 用 replace 而不是 format，因為提示詞裡的 JSON 範例有大括號
     return (JUDGE_PROMPT.replace("{question}", question)
             .replace("{reference}", reference).replace("{answer}", answer))`),
 
       "**解析評審的回答，並用 Pydantic 驗證**（Pydantic 見 Python 的 AI 應用那一課）。評審有時會在 JSON 前後多說話，或給出不合規則的分數，要處理：",
-      C(String.raw`import re
-from pydantic import BaseModel, Field, ValidationError
+      C(String.raw`import re  # re：正規表達式
+from pydantic import BaseModel, Field, ValidationError  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定；ValidationError：資料驗證失敗時丟出的例外
 
 class Verdict(BaseModel):
     reason: str
     score: int = Field(ge=1, le=5)            # 只接受 1 到 5
 
+# parse_verdict：從評審回覆抓出 JSON 判定，輸入回覆文字，輸出解析後的結果；抓不到回 None
 def parse_verdict(text):
     match = re.search(r"\{.*\}", text, re.DOTALL)      # 抓出第一個 { 到最後一個 } 之間的內容
     if not match:
@@ -355,14 +365,16 @@ def parse_verdict(text):
     except ValidationError:
         return None                                    # 格式不對就當作解析失敗
 
+# judge：呼叫評審模型並解析判定，輸入呼叫函式、問題、參考與答案，輸出判定結果
 def judge(call, question, reference, answer):
     text = call(build_judge_prompt(question, reference, answer))
     return parse_verdict(text)`),
 
       "**實際呼叫評審模型**（官方範例用較強的模型當評審；思考預設開啟，所以 `max_tokens` 留足空間）：",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 client = anthropic.Anthropic()
 
+# call_judge：用評審模型（最好與被評測模型不同）回答提示詞，輸入提示詞，輸出回覆文字
 def call_judge(prompt):
     message = client.messages.create(
         model="claude-opus-5-5",                       # 評審模型。最好和被評測的模型不同
@@ -385,7 +397,8 @@ print([parse_verdict(t).score if parse_verdict(t) else None for t in outputs])
 # [5, 3, None, None]    後兩筆都解析失敗，要被記錄下來`),
 
       "**第一步一定要驗證：評審跟人類的看法一致嗎？** 自己先對 20 到 30 題人工打分，再讓評審打，比較一致的程度：",
-      C(String.raw`def agreement(human, machine):
+      C(String.raw`# agreement：比較人工分數與機器分數，輸入兩組分數，輸出（完全一致比例，相差 1 分內比例，可比較筆數，總筆數）
+def agreement(human, machine):
     pairs = [(h, m) for h, m in zip(human, machine) if m is not None]    # 先排除解析失敗的
     exact_rate = sum(h == m for h, m in pairs) / len(pairs)                # 分數完全一樣的比例
     near_rate = sum(abs(h - m) <= 1 for h, m in pairs) / len(pairs)        # 相差在 1 分內的比例
@@ -416,13 +429,15 @@ print(agreement(human, machine))
       "**迴歸測試**（regression test）要回答的問題是：**「我剛剛改的東西，有沒有把原本做對的弄壞？」** 每次修改提示詞、換模型、調整流程之後，都重跑一次評測，跟上一次的結果比較。",
 
       "**做法：把每次評測的結果存下來，並記錄當時的設定。** 第一次的結果就是「基準線（baseline）」：",
-      C(String.raw`import json
-from pathlib import Path
+      C(String.raw`import json  # json：讀寫 JSON
+from pathlib import Path  # Path：處理檔案路徑的物件
 
+# save_run：把一次評測的每題通過率與中繼資料存成 JSON，輸入結果、路徑與資料，輸出無
 def save_run(results, path, meta):
     data = {"meta": meta, "results": {r["id"]: r["pass_rate"] for r in results}}
     Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
+# load_run：讀回之前存好的評測結果，輸入路徑，輸出字典
 def load_run(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -460,14 +475,15 @@ report = compare(load_run("evals/baseline.json"), current, case_tolerance=0.3)`)
 
       "**接上 pytest，變成真正的自動化測試：** 呼叫 LLM 要花錢又慢，所以**預設跳過**，只有明確要求時才執行：",
       C(String.raw`# test_evals.py
-import os
-import pytest
+import os  # os：作業系統功能（路徑、環境變數）
+import pytest  # pytest：Python 的測試框架
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_EVALS") != "1",
     reason="評測會呼叫 API，預設不執行；要跑請設定 RUN_EVALS=1",
 )
 
+# test_no_regression：重跑評測並與基準比較，有題目退步就讓測試失敗
 def test_no_regression():
     cases = load_cases("evals/cases.jsonl")
     results = run_eval(cases, ask_llm, exact, repeats=3)

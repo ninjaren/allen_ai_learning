@@ -65,8 +65,8 @@ window.LESSON = window.LESSON || {};
       ] },
 
       "**用 Python 函式自動產生定義：`@beta_tool`。** SDK 提供 tool runner 的輔助工具，會讀你的型別標註和 docstring 產生 schema，不用手寫 JSON：",
-      C(String.raw`import json
-from anthropic import beta_tool
+      C(String.raw`import json  # json：讀寫 JSON
+from anthropic import beta_tool  # beta_tool：把函式包成 SDK 的工具（tool runner 用）
 
 @beta_tool
 def get_temp(city: str, unit: str = "celsius") -> str:
@@ -143,20 +143,23 @@ print(json.dumps(get_temp.to_dict(), ensure_ascii=False, indent=2))
       "`tool_use` 區塊有三個欄位：`id`（用來對應結果）、`name`（工具名稱）、`input`（符合 schema 的參數）。模型常常在呼叫工具前先說一句話，所以 `content` 裡可能有文字區塊，**不要假設第一個就是 tool_use**。",
 
       "**完整的手動迴圈（已用模擬伺服器實際跑過）：**",
-      C(String.raw`import json
-import anthropic
+      C(String.raw`import json  # json：讀寫 JSON
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()
 
+# get_weather：示範工具，輸入城市與溫度單位，輸出包含城市、溫度與單位的字典
 def get_weather(city, unit="celsius"):
     data = {"台北": 24, "高雄": 29}
     return {"city": city, "temp": data[city], "unit": unit}
 
 REGISTRY = {"get_weather": get_weather}      # 工具名稱 -> 真正的函式
 
+# get_text：只取回覆裡的文字區塊，輸入回覆，輸出文字
 def get_text(message):
     return "".join(b.text for b in message.content if b.type == "text")
 
+# run_tool：依工具名稱執行並包成 tool_result，輸入模型的 tool_use 區塊，輸出 tool_result 字典
 def run_tool(block):
     result = REGISTRY[block.name](**block.input)
     return {
@@ -165,6 +168,7 @@ def run_tool(block):
         "content": json.dumps(result, ensure_ascii=False),
     }
 
+# agent：工具使用迴圈，模型要工具就執行並把結果還給它，直到不再要工具或超過輪數，輸入問題、工具定義與輪數上限，輸出最後文字
 def agent(question, tools, max_turns=8):
     messages = [{"role": "user", "content": question}]
     for turn in range(1, max_turns + 1):
@@ -203,9 +207,9 @@ def agent(question, tools, max_turns=8):
       ] },
 
       "**更簡單的做法：SDK 的 tool runner（beta）。** 它幫你處理迴圈、結果格式、錯誤包裝與對話狀態：",
-      C(String.raw`import json
-import anthropic
-from anthropic import beta_tool
+      C(String.raw`import json  # json：讀寫 JSON
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
+from anthropic import beta_tool  # beta_tool：把函式包成 SDK 的工具（tool runner 用）
 
 client = anthropic.Anthropic()
 
@@ -273,8 +277,9 @@ print(message.content)                     # 最後一則就是最終答案`),
       ] },
 
       "**用執行緒同時執行，並保持順序：**",
-      C(String.raw`from concurrent.futures import ThreadPoolExecutor
+      C(String.raw`from concurrent.futures import ThreadPoolExecutor  # ThreadPoolExecutor：用執行緒池並行執行函式
 
+# run_all：用執行緒池並行執行多個工具呼叫，結果依輸入順序回傳，輸入 tool_use 區塊清單，輸出 tool_result 清單
 def run_all(blocks):
     # pool.map 會依傳入順序回傳結果，不管哪個先做完
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -326,7 +331,8 @@ messages.append({"role": "user", "content": results})`),
       "模型收到後，會把這個錯誤納入它的回應，例如告訴使用者「這個服務查不到東京」，或改用別的參數再試一次。",
 
       "**把例外包起來，統一變成 `tool_result`：**",
-      C(String.raw`def run_tool(block):
+      C(String.raw`# run_tool：加強版，找不到工具或執行出錯都包成 is_error 的 tool_result，輸入 tool_use 區塊，輸出 tool_result 字典
+def run_tool(block):
     fn = REGISTRY.get(block.name)
     if fn is None:
         return {"type": "tool_result", "tool_use_id": block.id,
@@ -358,8 +364,9 @@ messages.append({"role": "user", "content": results})`),
       ] },
 
       "**暫時性錯誤：你的程式先重試，不要都丟給模型。** 網路逾時、對方回 503 這類，通常重試一兩次就好。先自己重試（有上限、有等待時間），仍失敗才回報給模型：",
-      C(String.raw`import time
+      C(String.raw`import time  # time：計時與暫停
 
+# call_with_retry：只對逾時這類暫時性錯誤重試並逐次拉長等待，輸入函式、參數與次數，輸出函式結果；最後一次仍失敗就丟出
 def call_with_retry(fn, args, tries=3, wait=1.0):
     for attempt in range(1, tries + 1):
         try:
@@ -395,12 +402,13 @@ def call_with_retry(fn, args, tries=3, wait=1.0):
 
       "**1. 用 Pydantic 驗證參數（內容層面）**",
       "`strict` 保證型別對，但『金額不能是負的』『日期不能在過去』『檔名不能含 `..`』要靠你自己檢查。在執行工具前驗證，失敗就用 `is_error` 回報，模型可以修正：",
-      C(String.raw`from pydantic import BaseModel, Field, ValidationError
+      C(String.raw`from pydantic import BaseModel, Field, ValidationError  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定；ValidationError：資料驗證失敗時丟出的例外
 
 class RefundArgs(BaseModel):
     order_id: str = Field(pattern=r"^A\d{5}$")
     amount: int = Field(gt=0, le=5000)              # 大於 0、最多 5000
 
+# safe_call：先用 pydantic 驗證模型給的參數，不合格式就回 is_error 與原因，通過才執行，輸入區塊、參數模型與函式，輸出 tool_result 字典
 def safe_call(block, model, fn):
     try:
         args = model.model_validate(block.input)
@@ -422,10 +430,11 @@ def safe_call(block, model, fn):
       ] },
 
       "**3. 路徑與檔名：防止跳出允許的資料夾**",
-      C(String.raw`from pathlib import Path
+      C(String.raw`from pathlib import Path  # Path：處理檔案路徑的物件
 
 BASE = Path("workspace").resolve()
 
+# safe_path：把使用者給的路徑接到 workspace 並確認沒有跳出，輸入路徑，輸出真實路徑；超出範圍丟 ValueError
 def safe_path(user_path):
     p = (BASE / user_path).resolve()
     if not p.is_relative_to(BASE):                  # 跳出 workspace 就拒絕
@@ -440,8 +449,9 @@ except ValueError as e:
       "`resolve()` 會展開 `..` 與符號連結，再用 `is_relative_to` 判斷是否仍在允許的資料夾內。只檢查字串裡有沒有 `..` 是不夠的。",
 
       "**4. SQL：永遠用參數化查詢，絕不拼接模型給的字串**",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 
+# get_order：用參數化查詢（?）取訂單，避免 SQL 注入，輸入連線與訂單編號，輸出一列資料
 def get_order(conn, order_id):
     # 好：參數用 ? 傳入，由資料庫驅動處理
     return conn.execute("SELECT id, status FROM orders WHERE id = ?", (order_id,)).fetchone()
@@ -453,6 +463,7 @@ def get_order(conn, order_id):
       "刪除、付款、寄信、對外發布、修改權限，這類**難以復原或對外的操作**，不要讓模型直接執行。做法是『提議』而非『執行』：工具只回傳『待核准的請求』，由人確認後才真的做：",
       C(String.raw`DANGEROUS = {"delete_file", "send_email", "refund"}
 
+# run_tool：危險工具先在終端機詢問使用者，拒絕就回 is_error，輸入 tool_use 區塊，輸出 tool_result 字典
 def run_tool(block):
     if block.name in DANGEROUS:
         answer = input(f"模型要執行 {block.name}({block.input})，同意嗎？(y/N) ")

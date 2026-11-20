@@ -21,10 +21,11 @@ window.LESSON = window.LESSON || {};
       ] },
 
       "**1. 給角色（一句話就有效）：**",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()
 
+# get_text：只取回覆裡的文字區塊（Claude 5 開頭可能是 thinking 區塊），輸入回覆，輸出文字
 def get_text(message):
     # Claude 5 預設會思考，content 開頭可能是 thinking 區塊，所以不能用 content[0]
     return "".join(b.text for b in message.content if b.type == "text")
@@ -123,6 +124,7 @@ print(get_text(message))`),
     ("還不錯啦（翻白眼）", "負面"),
 ]
 
+# build_system：把指令與範例（評論、標籤）組成系統提示詞，範例用標籤包起來，輸入指令與範例清單，輸出提示詞文字
 def build_system(instruction, examples):
     parts = [instruction, "", "<examples>"]
     for review, label in examples:
@@ -162,11 +164,12 @@ print(system)`),
       ] },
 
       "**做法一：自己要求，再用程式取出答案**",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
 SYSTEM = """請先在 <thinking> 標籤裡一步步推理，再把最終答案放在 <answer> 標籤裡。
 <answer> 裡只放答案本身，不要放推理。"""
 
+# extract：從模型輸出抓出指定標籤包住的內容，輸入文字與標籤名，輸出內容或 None
 def extract(text, tag):
     m = re.search(rf"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
     return m.group(1).strip() if m else None
@@ -251,7 +254,8 @@ print(get_text(message))     # 只取文字（get_text 見「角色與指令設�
 </question>"""`),
 
       "**多份文件時，加上來源資訊：**",
-      C(String.raw`def build_documents(docs):
+      C(String.raw`# build_documents：把多份文件編號並用標籤包成 documents 區塊，輸入（來源，內容）清單，輸出文字區塊
+def build_documents(docs):
     parts = ["<documents>"]
     for i, (source, content) in enumerate(docs, start=1):
         parts.append(
@@ -296,7 +300,7 @@ user = f"<review>\n{review_text}\n</review>"`),
 
       "**1. 模板：把會變的部分抽成變數**",
       "Python 標準函式庫的 `string.Template` 用 `$變數名` 當佔位符，**不會被提示詞裡的大括號干擾**。這點很重要：提示詞常常要寫 JSON 範例，裡面都是 `{}`，用 `str.format` 會直接 `KeyError`（階段 4 評審提示詞也踩過這個）。",
-      C(String.raw`from string import Template
+      C(String.raw`from string import Template  # Template：字串模板（用 $變數 填值）
 
 CLASSIFY = Template("""你是評論情緒分類員。
 <review>
@@ -322,11 +326,12 @@ print(CLASSIFY.safe_substitute(review="只要 $5 太貴了"))`),
   classify_v1.txt
   classify_v2.txt
   summarize_v1.txt`),
-      C(String.raw`from pathlib import Path
-from string import Template
+      C(String.raw`from pathlib import Path  # Path：處理檔案路徑的物件
+from string import Template  # Template：字串模板（用 $變數 填值）
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
 
+# load_prompt：依名稱與版本讀取提示詞檔，輸入名稱與版本，輸出 Template 模板
 def load_prompt(name, version):
     path = PROMPT_DIR / f"{name}_v{version}.txt"
     return Template(path.read_text(encoding="utf-8"))
@@ -347,6 +352,7 @@ prompt = template.substitute(review="好吃是好吃，但是貴到不行。")`)
       "**4. 一個簡單的版本註冊表**",
       C(String.raw`ACTIVE = {"classify": 2, "summarize": 1}      # 目前上線的版本
 
+# get_prompt：取得提示詞（沒指定版本就用目前啟用的版本），輸入名稱與版本，輸出（模板，版本標籤）
 def get_prompt(name, version=None):
     version = version or ACTIVE[name]
     return load_prompt(name, version), f"{name}_v{version}"
@@ -359,8 +365,9 @@ print(label)       # classify_v2`),
         "**模板測試**：每個提示詞檔都能被 `substitute` 成功填入、沒有遺漏的佔位符、渲染後沒有殘留的 `$`",
         "**評測**：階段 4 的評測題目，每個新版本都要跑，並與上一版比較（迴歸測試）",
       ] },
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
+# check_template：把值填進模板並確認沒有漏填的佔位符，輸入模板與值，輸出填好的文字
 def check_template(template, **values):
     text = template.substitute(**values)
     assert not re.search(r"\$[A-Za-z_]", text), "還有沒填的佔位符"
@@ -393,8 +400,8 @@ check_template(CLASSIFY, review="測試")`),
       ] },
 
       "**用法一：Pydantic（最省事）**",
-      C(String.raw`import anthropic
-from pydantic import BaseModel
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class ReviewResult(BaseModel):
     sentiment: str        # 正面 / 負面 / 中性
@@ -415,7 +422,7 @@ print(result.sentiment, result.confident)`),
       "`parse()` 會幫你把 Pydantic 模型轉成 schema 送出去，收到結果後再驗證，最後回傳型別正確的物件。",
 
       "**用法二：原始 JSON schema**",
-      C(String.raw`import json
+      C(String.raw`import json  # json：讀寫 JSON
 
 response = client.messages.create(
     model="claude-sonnet-5-5",
@@ -486,12 +493,13 @@ else:
       ] },
 
       "**Pydantic** 是 Python 最常用的資料驗證套件（階段 1 的 Python 課程已介紹）。它能做三件事：定義結構、驗證輸入、產生可讀的錯誤訊息。",
-      C(String.raw`from pydantic import BaseModel, Field, ValidationError, field_validator
+      C(String.raw`from pydantic import BaseModel, Field, ValidationError, field_validator  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定；ValidationError：資料驗證失敗時丟出的例外；field_validator：針對單一欄位寫自訂驗證
 
 class Review(BaseModel):
     sentiment: str
     score: int = Field(ge=1, le=5)          # 1 到 5
 
+    # check_sentiment：欄位驗證器，情緒只能是正面、負面、中性，輸入值，輸出原值；不合法就丟 ValueError
     @field_validator("sentiment")
     @classmethod
     def check_sentiment(cls, v):
@@ -508,8 +516,9 @@ except ValidationError as e:
     # ('score',) Input should be less than or equal to 5`),
 
       "**第一步：從文字裡抓出 JSON。** 模型有時會在 JSON 前後多話，用正則抓出第一個 `{` 到最後一個 `}`：",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
+# extract_json：從文字抓出第一個 { 到最後一個 } 之間的 JSON 片段，輸入文字，輸出字串或 None
 def extract_json(text):
     m = re.search(r"\{.*\}", text, re.DOTALL)
     return m.group(0) if m else None
@@ -531,7 +540,8 @@ print(validate("我覺得不錯"))                                         # (No
 
       "**第二步：失敗時「修復」 —— 把錯誤告訴模型，請它改**",
       "最有效的修復是把**模型自己的輸出**加上**具體的錯誤訊息**回傳給它，請它修正。比單純重試一次更有針對性：",
-      C(String.raw`def ask_with_repair(client, question, max_tries=3):
+      C(String.raw`# ask_with_repair：驗證失敗就把錯誤回饋給模型請它修正，最多重試，輸入用戶端、問題與次數，輸出（結果物件或 None，嘗試次數）
+def ask_with_repair(client, question, max_tries=3):
     messages = [{"role": "user", "content": question}]
     for attempt in range(1, max_tries + 1):
         reply = client.messages.create(
@@ -564,7 +574,7 @@ print(validate("我覺得不錯"))                                         # (No
       ] },
 
       "**成功率怎麼看？** 每次呼叫記錄 `attempt`，跑一批評測題目後統計：",
-      C(String.raw`from collections import Counter
+      C(String.raw`from collections import Counter  # Counter：計數器，統計每個項目出現幾次
 
 attempts = [1, 1, 2, 1, 3, 1, 1, 2, 1, 1]       # 假資料：每題用了幾次才成功
 print(Counter(attempts))                          # Counter({1: 7, 2: 2, 3: 1})

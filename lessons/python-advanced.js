@@ -9,7 +9,8 @@ window.LESSON = window.LESSON || {};
     // ───────────────────────── 型別標註 ─────────────────────────
     "py-09": [
       "型別標註是寫在程式裡的「標籤」，告訴讀者和工具這個變數該是什麼型別。**Python 執行時不會強制檢查**，但編輯器（VS Code 的 Pylance）和檢查工具能提前幫你抓錯，程式也更好讀。",
-      C(String.raw`def greet(name: str, times: int = 1) -> str:
+      C(String.raw`# greet：輸入名字與重複次數，輸出重複後的問候字串
+def greet(name: str, times: int = 1) -> str:
     return (name + "！") * times
 
 age: int = 20
@@ -18,7 +19,8 @@ scores: dict[str, int] = {"小明": 90}
 point: tuple[int, int] = (3, 5)`),
 
       "**可能是空值：** 用 `X | None`（Python 3.10 以上）：",
-      C(String.raw`def find_user(user_id: int) -> str | None:
+      C(String.raw`# find_user：輸入使用者編號，輸出名字；找不到回傳 None
+def find_user(user_id: int) -> str | None:
     users = {1: "小明", 2: "小華"}
     return users.get(user_id)     # 找不到會回傳 None
 
@@ -27,10 +29,11 @@ if name is not None:              # 先檢查，工具才知道這裡一定是 s
     print(name.upper())`),
 
       "**限定幾種固定的值：** 用 `Literal`，描述 LLM 訊息的角色這類情況很好用：",
-      C(String.raw`from typing import Literal
+      C(String.raw`from typing import Literal  # Literal：限定只能是某幾個固定值
 
 Role = Literal["user", "assistant"]
 
+# make_message：輸入角色與內容，輸出一則訊息字典
 def make_message(role: Role, content: str) -> dict:
     return {"role": role, "content": content}
 
@@ -38,8 +41,9 @@ make_message("user", "你好")      # OK
 make_message("boss", "你好")      # 型別檢查工具會標出錯誤`),
 
       "**函式當參數：** 用 `Callable`；**任意型別**用 `Any`（盡量少用）：",
-      C(String.raw`from typing import Callable
+      C(String.raw`from typing import Callable  # Callable：標註『可以被呼叫的東西』（函式）
 
+# apply：輸入一個函式與數字，輸出把函式套用在數字上的結果
 def apply(f: Callable[[int], int], x: int) -> int:
     return f(x)
 
@@ -61,10 +65,12 @@ pyright main.py`),
     "py-10": [
       "**類別（class）** 把「資料」和「操作資料的函式」包在一起。`__init__` 是建立物件時自動執行的初始化函式，`self` 代表物件本身。",
       C(String.raw`class Dog:
+    # __init__：建立物件時自動執行，輸入名字與年齡並存成屬性
     def __init__(self, name: str, age: int):
         self.name = name        # 屬性
         self.age = age
 
+    # bark：輸入無（用 self），輸出狗叫的字串
     def bark(self) -> str:      # 方法
         return f"{self.name}：汪！"
 
@@ -74,7 +80,7 @@ print(d.age)                    # 3
 print(d)                        # <__main__.Dog object at 0x...>  不好讀`),
 
       "**`@dataclass`：** 如果類別主要是用來存資料，用它可以自動產生 `__init__`、`__repr__`（好讀的印出格式）、`==` 比較，省下大量重複程式碼：",
-      C(String.raw`from dataclasses import dataclass, field, asdict
+      C(String.raw`from dataclasses import dataclass, field, asdict  # dataclass：用裝飾器快速定義資料類別；field：設定 dataclass 欄位的預設值等細節；asdict：把 dataclass 轉成字典
 
 @dataclass
 class Message:
@@ -95,6 +101,7 @@ class Point:
 
       "**繼承：** 子類別沿用父類別的功能，用 `super()` 呼叫父類別：",
       C(String.raw`class Puppy(Dog):
+    # bark：覆寫父類別的方法，在原本叫聲後加上（小聲），輸出字串
     def bark(self) -> str:
         return super().bark() + "（小聲）"
 
@@ -119,7 +126,8 @@ print(next(it))   # 3
 # 再 next(it) 會出現 StopIteration`),
 
       "**產生器（generator）** 是用 `yield` 寫的函式：每次要值才計算一個，不會一次把所有結果放進記憶體。",
-      C(String.raw`def countdown(n):
+      C(String.raw`# countdown：產生器，輸入起始數字，每次交出一個倒數的值
+def countdown(n):
     while n > 0:
         yield n          # 交出一個值，然後暫停在這裡
         n -= 1
@@ -131,7 +139,8 @@ for x in countdown(3):
       C(String.raw`total = sum(n * n for n in range(1_000_000))   # 不會先建立一百萬個數字的 list`),
 
       "**實際用途：處理大檔案。** 一行一行讀，不用把整個檔案放進記憶體：",
-      C(String.raw`def read_lines(path):
+      C(String.raw`# read_lines：產生器，輸入檔案路徑，一次交出一行（去掉換行），不會一次讀完整個檔案
+def read_lines(path):
     with open(path, encoding="utf-8") as f:
         for line in f:
             yield line.strip()
@@ -151,10 +160,12 @@ for line in read_lines("big.log"):
     // ───────────────────────── 裝飾器與 context manager ─────────────────────────
     "py-12": [
       "**裝飾器（decorator）** 是一個「包裝函式的函式」：在不改動原函式的情況下，替它加上額外功能（計時、重試、記錄日誌…）。",
-      C(String.raw`import time
-import functools
+      C(String.raw`import time  # time：計時與暫停
+import functools  # functools：高階函式工具（如 partial、cache）
 
+# timer：裝飾器，輸入函式，輸出包好計時功能的新函式
 def timer(func):
+    # wrapper：包在原函式外的函式，執行前後計時並印出秒數，輸出原函式的結果
     @functools.wraps(func)            # 保留原函式的名稱與說明
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
@@ -163,6 +174,7 @@ def timer(func):
         return result                 # 一定要把結果回傳
     return wrapper
 
+# slow：示範用，睡一秒，用來看計時裝飾器的效果
 @timer                                # 等同於 slow = timer(slow)
 def slow():
     time.sleep(1)
@@ -170,8 +182,11 @@ def slow():
 slow()                                # slow 花了 1.00 秒`),
 
       "**帶參數的裝飾器** 要多包一層。下面是呼叫 API 常用的「失敗就重試」：",
-      C(String.raw`def retry(times):
+      C(String.raw`# retry：帶參數的裝飾器工廠，輸入重試次數，輸出真正的裝飾器
+def retry(times):
+    # decorator：輸入要包裝的函式，輸出加上重試功能的新函式
     def decorator(func):
+        # wrapper：包在原函式外的函式，失敗就重試到次數用完，輸出原函式的結果
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             for i in range(times):
@@ -184,13 +199,15 @@ slow()                                # slow 花了 1.00 秒`),
         return wrapper
     return decorator
 
+# call_api：示範用，被 retry 包住的函式（內容省略）
 @retry(3)
 def call_api():
     ...`),
 
       "**context manager** 就是 `with` 後面接的東西，保證「進入時做準備、離開時一定做清理」，即使中間出錯也會執行。用 `@contextmanager` 最簡單：",
-      C(String.raw`from contextlib import contextmanager
+      C(String.raw`from contextlib import contextmanager  # contextmanager：把產生器變成 with 可用的區塊
 
+# timer_block：用 contextmanager 做的區塊，進入時開始計時，離開時印出花費秒數
 @contextmanager
 def timer_block(name):
     start = time.perf_counter()
@@ -204,9 +221,11 @@ with timer_block("處理資料"):
 
       "也可以用類別，實作 `__enter__` 和 `__exit__`：",
       C(String.raw`class Connection:
+    # __enter__：進入 with 時執行，輸出要綁給 as 的物件
     def __enter__(self):
         print("連線")
         return self
+    # __exit__：離開 with 時一定會執行（即使出錯），輸入例外資訊，用來清理資源
     def __exit__(self, exc_type, exc, tb):
         print("關閉連線")            # 即使 with 裡面出錯也會執行`),
       { pitfall: [
@@ -222,12 +241,14 @@ with timer_block("處理資料"):
     "py-13": [
       "**為什麼需要 async？** 呼叫 LLM API、下載網頁這類工作大部分時間都在「等」。同步寫法等的時候什麼都不能做；async 讓程式在等的時候去處理別的工作。",
       "**三個關鍵字：** `async def` 定義非同步函式、`await` 等待結果、`asyncio.run()` 啟動整個流程。",
-      C(String.raw`import asyncio
+      C(String.raw`import asyncio  # asyncio：非同步執行與等待
 
+# fetch：協程，輸入名稱與等待秒數，模擬等網路，輸出完成訊息
 async def fetch(name, seconds):
     await asyncio.sleep(seconds)      # 模擬等待網路
     return f"{name} 完成"
 
+# main：只等一個任務，await 它的結果並印出
 async def main():
     result = await fetch("A", 1)
     print(result)
@@ -235,7 +256,8 @@ async def main():
 asyncio.run(main())`),
 
       "**同時進行：** 用 `asyncio.gather`。三個各要 1 秒的工作，同時跑只要約 1 秒；如果一個一個 `await`，要 3 秒。",
-      C(String.raw`async def main():
+      C(String.raw`# main：用 asyncio.gather 讓多個任務同時等，輸出全部結果
+async def main():
     results = await asyncio.gather(
         fetch("A", 1),
         fetch("B", 1),
@@ -246,11 +268,13 @@ asyncio.run(main())`),
       "**限制同時數量：** 一次送出太多請求會被 API 限流（HTTP 429）。用 `Semaphore` 控制同時最多幾個：",
       C(String.raw`sem = asyncio.Semaphore(5)         # 同時最多 5 個
 
+# ask：協程，先取得信號量再模擬呼叫 API，輸入問題，輸出回答字串
 async def ask(question):
     async with sem:
         await asyncio.sleep(0.5)      # 這裡換成真正的 API 呼叫
         return f"回答：{question}"
 
+# main：同時送出 20 個問題，信號量限制同時進行的數量，印出回答筆數
 async def main():
     questions = [f"問題 {i}" for i in range(20)]
     answers = await asyncio.gather(*(ask(q) for q in questions))
@@ -271,20 +295,24 @@ async def main():
       C(String.raw`pip install pytest`),
       "假設有一個要測的程式 `calc.py`，和對應的測試檔 `test_calc.py`：",
       C(String.raw`# calc.py
+# add：輸入兩個數，輸出相加的結果（被測試的對象）
 def add(a, b):
     return a + b
 
+# divide：輸入兩個數，輸出相除的結果；除數為 0 就丟出 ValueError
 def divide(a, b):
     if b == 0:
         raise ValueError("除數不能是 0")
     return a / b`),
       C(String.raw`# test_calc.py
-import pytest
-from calc import add, divide
+import pytest  # pytest：Python 的測試框架
+from calc import add, divide  # add：示範用的加法函式（拿來測試）；divide：示範用的除法函式（拿來測試）
 
+# test_add：測試 add，用 assert 檢查結果是否正確
 def test_add():
     assert add(1, 2) == 3             # 用 assert 檢查結果
 
+# test_divide_by_zero：測試除數為 0 時是否會丟出 ValueError
 def test_divide_by_zero():
     with pytest.raises(ValueError):   # 預期會丟出這個例外
         divide(1, 0)
@@ -294,6 +322,7 @@ def test_divide_by_zero():
     (0, 0, 0),
     (-1, 1, 0),
 ])
+# test_add_many：參數化測試，同一個測試函式用多組輸入與期望值各跑一次
 def test_add_many(a, b, expected):    # 同一個測試用多組資料跑
     assert add(a, b) == expected`),
 
@@ -305,20 +334,24 @@ pytest -x                    # 遇到第一個失敗就停止`),
 
       "**fixture：** 準備測試需要的環境。`tmp_path` 是 pytest 內建的暫存資料夾，測完自動清掉：",
       C(String.raw`@pytest.fixture
+# sample_file：fixture，在暫存資料夾建立一個檔案，輸出它的路徑，每個測試各拿一份
 def sample_file(tmp_path):
     p = tmp_path / "a.txt"
     p.write_text("hi", encoding="utf-8")
     return p
 
+# test_read：測試讀出的內容與寫入的相同，使用 sample_file 這個 fixture
 def test_read(sample_file):
     assert sample_file.read_text(encoding="utf-8") == "hi"`),
 
       "**假造環境變數或外部服務：** 用 `monkeypatch`，測試時就不用真的呼叫付費 API：",
-      C(String.raw`import os
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
 
+# get_key：從環境變數讀 API_KEY，輸出字串
 def get_key():
     return os.environ["API_KEY"]
 
+# test_get_key：用 monkeypatch 暫時設定環境變數，驗證 get_key 讀到測試值
 def test_get_key(monkeypatch):
     monkeypatch.setenv("API_KEY", "test-key")
     assert get_key() == "test-key"`),
@@ -365,7 +398,7 @@ pythonpath = ["src"]`),
       C(String.raw`# .env（不要提交到 Git）
 ANTHROPIC_API_KEY=你的key`),
       C(String.raw`# main.py
-import os
+import os  # os：作業系統功能（路徑、環境變數）
 from dotenv import load_dotenv     # pip install python-dotenv
 
 load_dotenv()                       # 把 .env 的內容載入環境變數

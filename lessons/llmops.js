@@ -30,16 +30,17 @@ window.LESSON = window.LESSON || {};
       "**選擇建議：** 剛開始、想快速看到 trace，用 Langfuse 或 LangSmith 其中一個最快；在意資料不外流或要避免被綁定，優先考慮 OTel 加自架的後端。這些工具的功能會一直變，選之前看官方文件與定價。以下我先教最底層的 OTel 手動追蹤，因為你懂了它，用任何工具都不會迷路。",
 
       "**OTel 手動追蹤（實際跑過）。** 安裝：`pip install opentelemetry-sdk`。下面用記憶體匯出器把 span 收集起來看結構；實際使用時把它換成送到後端的匯出器（OTLP）：",
-      C(String.raw`from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+      C(String.raw`from opentelemetry import trace  # trace：OpenTelemetry 的追蹤入口
+from opentelemetry.sdk.trace import TracerProvider  # TracerProvider：OpenTelemetry 的追蹤提供者
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor  # SimpleSpanProcessor：收到 span 就立刻送出的處理器
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter  # InMemorySpanExporter：把 span 留在記憶體（方便測試）
 
 exporter = InMemorySpanExporter()                  # 示範用：把 span 收在記憶體；正式環境換成 OTLP 匯出器
 provider = TracerProvider()
 provider.add_span_processor(SimpleSpanProcessor(exporter))
 tracer = provider.get_tracer("chatapp")
 
+# traced_chat：替一次請求建立追蹤（最外層請求、檢索、模型呼叫三層 span）並記下模型與用量屬性，輸入模型與問題，輸出模型回覆
 def traced_chat(model, question):
     with tracer.start_as_current_span("chat_request") as root:           # 最外層：一次使用者請求
         root.set_attribute("app.user_id_hash", "u_ab12")                 # 放雜湊，不放真實身分
@@ -94,8 +95,9 @@ def traced_chat(model, question):
 #   $env:LANGFUSE_SECRET_KEY = "sk-lf-..."
 #   $env:LANGFUSE_BASE_URL   = "https://cloud.langfuse.com"     # 自架就填你自己的網址
 
-from langfuse import observe, get_client
+from langfuse import observe, get_client  # observe：裝飾器，自動把函式的一次執行記成一筆追蹤；get_client：取得 Langfuse 用戶端
 
+# answer：被追蹤的函式範例（檢索、呼叫模型，內容省略），輸入問題，輸出回答字串
 @observe()                       # 這個函式變成一個 span，裡面呼叫的其他 @observe 函式是它的子 span
 def answer(question: str) -> str:
     ...                          # 檢索、呼叫模型
@@ -109,7 +111,8 @@ get_client().flush()             # 短命的腳本結束前要 flush，否則資
         "**內容要不要記是取捨：** 記了才能除錯，但可能含個資與機密（客戶的信箱、病歷）。折衷：遮蔽敏感欄位後再記、只記一部分、用較短的保存期限、限制誰能看。",
         "**遮蔽的簡單做法**（只是示範，真實場景要涵蓋更多格式，並用專門的工具）：",
       ] },
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
+# mask：把文字裡的電子郵件與手機號碼換成佔位符再寫日誌，輸入文字，輸出遮蔽後的文字
 def mask(t):
     t = re.sub(r"[\w.+-]+@[\w-]+\.[\w.]+", "[EMAIL]", t)
     t = re.sub(r"\b09\d{2}-?\d{3}-?\d{3}\b", "[PHONE]", t)
@@ -145,15 +148,17 @@ print(mask("信箱 a.b@x.com 手機 0912-345-678"))      # 信箱 [EMAIL] 手機
         "**trace ID、請求 ID：** 對得回追蹤。",
         "**使用者的雜湊 ID：** 看誰用量異常，但不要放真實身分。",
       ] },
-      C(String.raw`import json
+      C(String.raw`import json  # json：讀寫 JSON
 
 # 示範價格（每百萬 token 美元：輸入, 輸出, 快取讀取佔輸入價的比例），以官方價格頁為準
 PRICES = {"claude-sonnet-5-5": (2.0, 10.0, 0.05), "claude-haiku-5-5": (0.10, 0.50, 0.10)}
 
+# cost：依單價與用量（含快取讀取）算花費，輸入模型名與用量，輸出美元金額
 def cost(model, u):
     pin, pout, cr = PRICES[model]
     return (u["input"] * pin + u["cache_read"] * pin * cr + u["output"] * pout) / 1e6
 
+# log_call：把一次呼叫的功能、提示版本、模型、延遲、用量與花費組成一行 JSON，輸入這些資料，輸出 JSON 字串
 def log_call(model, latency, u, status="ok", feature="chat", version="v3"):
     rec = {"feature": feature, "prompt_version": version, "model": model, "latency_ms": latency,
            "status": status, **u, "cost_usd": round(cost(model, u), 6)}
@@ -165,8 +170,9 @@ print(log_call("claude-sonnet-5-5", 840, {"input": 1200, "cache_read": 0, "outpu
       "（價格是示範用的數字，成本用量的完整計算與快取、思考 token 的細節見 Context Engineering 階段。）",
 
       "**二、延遲：看百分位，不要只看平均。** 平均會被大多數正常的請求拉低，隱藏少數很慢的。我用 1000 個隨機產生的延遲樣本（對數常態分布，固定亂數種子，只是示範分布形狀）算一下：",
-      C(String.raw`import math, statistics
+      C(String.raw`import math, statistics  # math：數學函式；statistics：基本統計函式（平均、標準差）
 
+# pct：算百分位數（例如 p95），輸入數值清單與百分比，輸出對應的值
 def pct(xs, p):
     xs = sorted(xs)
     i = min(len(xs) - 1, math.ceil(p / 100 * len(xs)) - 1)
@@ -243,13 +249,15 @@ def pct(xs, p):
       ] },
 
       "**自己做最小版本：用雜湊當版本識別。** 提示詞文字本身算一個短雜湊，內容一變 ID 就變，內容相同 ID 不變；再配一個遞增的版本號與說明。日誌和追蹤裡記下這個 ID，就能對回去。實際跑過：",
-      C(String.raw`import hashlib
+      C(String.raw`import hashlib  # hashlib：計算雜湊（例如 SHA256）
 
+# prompt_id：用內容的 SHA256 前 8 碼當提示詞的版本編號，輸入提示詞文字，輸出編號
 def prompt_id(text):
     return hashlib.sha256(text.encode()).hexdigest()[:8]
 
 registry = {}
 
+# register：登記一個提示詞版本，內容沒變就沿用最新版，輸入名稱、內容與備註，輸出該版本的資料
 def register(name, text, note):
     pid = prompt_id(text)
     versions = registry.setdefault(name, [])
@@ -268,7 +276,7 @@ print([(v["version"], v["id"]) for v in registry["support"]])
       "實際專案裡這份登記表就是 git 裡的檔案：提示詞存成獨立的檔案（例如 `prompts/support.txt`），每次修改用一個 commit 並寫清楚原因。程式啟動時讀檔、算出 ID，呼叫模型時把 ID 寫進追蹤與日誌。OTel 的 GenAI 規範也有對應的屬性：`gen_ai.prompt.name` 與 `gen_ai.prompt.version`。",
 
       "**Langfuse 取得提示詞的寫法（依官方文件；`get_prompt` 簽名我已安裝套件確認，有 `version`、`label`、`fallback`、`cache_ttl_seconds` 這些參數，沒有連線執行）：**",
-      C(String.raw`from langfuse import get_client
+      C(String.raw`from langfuse import get_client  # get_client：取得 Langfuse 用戶端
 
 langfuse = get_client()
 prompt = langfuse.get_prompt(
@@ -318,8 +326,9 @@ text = prompt.compile()                  # 填入變數後得到最終提示詞`
       ] },
 
       "**一、分流：同一個使用者永遠看到同一版。** 隨機分組不能每個請求各丟一次骰子，否則同一個使用者一下看到 A 一下看到 B，體驗混亂，結果也不可靠。標準做法是用**使用者 ID 加實驗名稱做雜湊**，再取餘數決定分組：結果固定（同一人同一實驗永遠同組）、分布均勻、不同實驗之間互相獨立（實驗名稱不同，雜湊就不同）：",
-      C(String.raw`import hashlib
+      C(String.raw`import hashlib  # hashlib：計算雜湊（例如 SHA256）
 
+# bucket：用實驗名稱加使用者編號做雜湊，穩定地把使用者分到 A 或 B 組，輸入使用者、實驗名與 B 組比例，輸出 A 或 B
 def bucket(user_id, experiment, pct_b=50):
     h = int(hashlib.sha256(f"{experiment}:{user_id}".encode()).hexdigest(), 16) % 100
     return "B" if h < pct_b else "A"
@@ -333,15 +342,17 @@ print([bucket(f"u{i}", "exp1") for i in range(5)], bucket("u1", "exp1") == bucke
       "分組結果要**記進日誌與追蹤**（`experiment`、`variant`），這樣之後才能依組別統計。新版有風險時，先給 5% 或 10% 的流量（`pct_b=5`），沒問題再擴大。",
 
       "**二、看結果：不能只看『B 比 A 高』。** 隨機性會讓兩組有差異，即使兩個版本其實一樣好。要用統計檢定判斷差異是不是只是運氣。對『好評比例』這類是／否的指標，常用**兩個比例的 z 檢定**，並且看**信賴區間**。實際跑過（用 `scipy` 取常態分布機率，Wilson 區間的寫法同評測階段）：",
-      C(String.raw`import math
-from scipy.stats import norm
+      C(String.raw`import math  # math：數學函式
+from scipy.stats import norm  # norm：常態分布（算機率與分位數）
 
+# wilson：通過率的 Wilson 信賴區間，輸入通過數與總數，輸出（下界，上界）
 def wilson(k, n, z=1.96):                       # 95% 信賴區間
     p = k / n; d = 1 + z * z / n
     c = (p + z * z / (2 * n)) / d
     h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
     return round(c - h, 3), round(c + h, 3)
 
+# two_prop：兩個比例的檢定，輸入 A、B 組的通過數與總數，輸出（差距，z 值，雙尾 p 值）
 def two_prop(ka, na, kb, nb):                   # 回傳 (差距, z, 雙尾 p 值)
     pa, pb = ka / na, kb / nb
     p = (ka + kb) / (na + nb)
@@ -359,7 +370,8 @@ print(two_prop(9, 20, 13, 20))
       "p 值的意思：『如果兩個版本其實一樣好，隨機就看到這麼大差異的機率』。通常用 0.05 當門檻，但 **p 值小不等於差異有意義、p 值大不等於沒差異**（可能只是樣本不夠）。一定要同時看差距的大小與信賴區間。",
 
       "**三、需要多少樣本？先算，不要邊做邊猜。** 想偵測的差異越小，需要的樣本越多（成長得很快）。常用的算法（80% 檢定力、5% 顯著水準）實際跑出的結果：",
-      C(String.raw`def n_per_group(p1, p2, z_a=1.96, z_b=0.8416):     # 每組需要的人數
+      C(String.raw`# n_per_group：估算要偵測出兩個比例的差距，每組至少需要多少人，輸入兩個預期比例與 z 值，輸出人數
+def n_per_group(p1, p2, z_a=1.96, z_b=0.8416):     # 每組需要的人數
     pbar = (p1 + p2) / 2
     return math.ceil(((z_a * math.sqrt(2 * pbar * (1 - pbar))
                        + z_b * math.sqrt(p1 * (1 - p1) + p2 * (1 - p2))) ** 2) / (p1 - p2) ** 2)
@@ -428,7 +440,7 @@ print(n_per_group(0.48, 0.52), n_per_group(0.48, 0.58))
       ] },
 
       "**二、儲存：回饋表和呼叫表要能 join。** 最小設計：一張記錄每次呼叫（輸入、輸出、提示詞版本、模型）的表，一張回饋表用 `call_id` 指回去，回饋有種類（讚倒讚、編輯、文字）。用 SQLite 實際跑過：",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 db = sqlite3.connect("app.db")
 db.executescript("""
 CREATE TABLE IF NOT EXISTS calls(id TEXT PRIMARY KEY, user TEXT, prompt_version TEXT, model TEXT, question TEXT, answer TEXT);

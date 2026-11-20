@@ -37,17 +37,18 @@ fastapi dev main.py                      # 開發模式，改檔案自動重啟�
         "**整個應用只建一個 `AsyncAnthropic` client：** 它內部有連線池，每個請求都新建會浪費連線。放在 `lifespan` 裡建立與關閉。",
         "**`system` 提示詞寫在後端：** 使用者不能改。",
       ] },
-      C(String.raw`from contextlib import asynccontextmanager
-from typing import Literal
+      C(String.raw`from contextlib import asynccontextmanager  # asynccontextmanager：把非同步產生器變成 async with 可用的區塊
+from typing import Literal  # Literal：限定只能是某幾個固定值
 
-from anthropic import AsyncAnthropic
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from anthropic import AsyncAnthropic  # AsyncAnthropic：非同步版的 Anthropic 用戶端
+from fastapi import FastAPI, Request  # FastAPI：建立應用程式物件；Request：代表一個進來的請求
+from fastapi.responses import FileResponse  # FileResponse：回傳檔案內容
+from fastapi.staticfiles import StaticFiles  # StaticFiles：提供靜態檔案（網頁、圖片）
+from pydantic import BaseModel, Field  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定
 
 MODEL = "claude-sonnet-5-5"
 
+# lifespan：應用啟動時建立共用的 Anthropic 用戶端，關閉時收掉，輸入 app，輸出無
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.claude = AsyncAnthropic(max_retries=1)   # 整個程式共用一個 client
@@ -63,6 +64,7 @@ class Msg(BaseModel):
 class ChatIn(BaseModel):
     messages: list[Msg] = Field(min_length=1, max_length=50)
 
+# index：回傳前端頁面 index.html
 @app.get("/")
 async def index():
     return FileResponse("static/index.html")           # 前端頁面
@@ -109,9 +111,10 @@ data: {"stop_reason": "end_turn"}
       "**FastAPI 內建 SSE（0.135.0 起）。** 官方文件說明：在路徑函式中用 `yield`，並設 `response_class=EventSourceResponse`（從 `fastapi.sse` 匯入）。要設定 `event`、`id`、`retry` 時，yield `ServerSentEvent` 物件；`data` 一律編成 JSON；要送非 JSON 的原始文字（例如結束標記 `[DONE]`）用 `raw_data`。官方文件也寫明它會自動做三件事：沒有訊息時每 15 秒送一個保持連線的註解、設 `Cache-Control: no-cache`、設 `X-Accel-Buffering: no`（避免 Nginx 這類代理把串流緩衝住）。SSE 不限 GET，POST 也可以，所以能把對話歷史放在請求內文。",
 
       "**完整端點：把 Claude 的串流轉成 SSE。** 這是實際跑過的版本：",
-      C(String.raw`from anthropic import APIConnectionError, APIStatusError
-from fastapi.sse import EventSourceResponse, ServerSentEvent
+      C(String.raw`from anthropic import APIConnectionError, APIStatusError  # APIConnectionError：連不上 API 時的例外；APIStatusError：API 回傳錯誤狀態碼時的例外
+from fastapi.sse import EventSourceResponse, ServerSentEvent  # EventSourceResponse：用 SSE 串流事件回應；ServerSentEvent：一則 SSE 事件
 
+# chat：接收對話訊息、向模型要串流回答，每段文字用 SSE 事件送出，輸入請求內容與 request，輸出（產生器）事件串流
 @app.post("/api/chat", response_class=EventSourceResponse)
 async def chat(body: ChatIn, request: Request):
     client = request.app.state.claude
@@ -145,16 +148,21 @@ async def chat(body: ChatIn, request: Request):
       "**客戶端中途離開（關頁面、按停止）：** 瀏覽器關閉連線後，Starlette 會取消這個生成器，`async with client.messages.stream(...)` 的區塊跟著結束，上游的連線被關閉，**模型就不會繼續生成下去浪費 token**。實測：前端按「停止」後，假的 Claude 伺服器端出現「連線被遠端重設」的錯誤，表示上游連線確實被關閉了（我沒有量化『之後省了多少 token』，那要在真實 API 上才看得出）。這是用 `async with` 包住串流的好處，所以一定要用它，不要手動開了不關。",
 
       "**WebSocket 的最小例子**（雙向、多人廣播），用 FastAPI 的 `WebSocket` 與 `WebSocketDisconnect`：",
-      C(String.raw`from fastapi import WebSocket, WebSocketDisconnect
+      C(String.raw`from fastapi import WebSocket, WebSocketDisconnect  # WebSocket：雙向即時連線物件；WebSocketDisconnect：WebSocket 連線中斷時的例外
 
 class Hub:
+    # __init__：記錄目前所有連線的清單
     def __init__(self): self.conns = []
+    # connect：接受新連線並加入清單
     async def connect(self, ws): await ws.accept(); self.conns.append(ws)
+    # drop：把斷線的連線從清單移除
     def drop(self, ws): self.conns.remove(ws)
+    # broadcast：把一段文字送給所有連線
     async def broadcast(self, text):
         for ws in list(self.conns): await ws.send_text(text)
 hub = Hub()
 
+# ws_endpoint：WebSocket 入口，加入大廳後持續接收訊息並廣播，斷線時離開，輸入連線與名稱，輸出無
 @app.websocket("/ws/{name}")
 async def ws_endpoint(ws: WebSocket, name: str):
     await hub.connect(ws)
@@ -244,6 +252,7 @@ const send = document.getElementById("send");
 const stop = document.getElementById("stop");
 let controller = null;
 
+// addLine：在對話區加一行文字（用 textContent 避免 XSS），輸入樣式與文字，輸出新建的 div
 function addLine(cls, text) {
   const div = document.createElement("div");
   div.className = cls;
@@ -329,7 +338,7 @@ stop.addEventListener("click", () => controller && controller.abort());`),
 
       "**一、密碼雜湊。** 雜湊是單向的：同樣的密碼得到同樣的結果，但無法從結果倒推密碼。OWASP 的密碼儲存指南建議用慢速、專為密碼設計的演算法，例如 **Argon2id**、bcrypt、PBKDF2，並且每個密碼加上獨立的隨機鹽（salt）；SHA-256 這類快速雜湊不適合用來存密碼。FastAPI 官方教學建議用 `pwdlib`（推薦演算法 Argon2）。它會自動產生鹽並包在結果字串裡：",
       C(String.raw`# pip install "pwdlib[argon2]"
-from pwdlib import PasswordHash
+from pwdlib import PasswordHash  # PasswordHash：密碼雜湊與驗證
 password_hash = PasswordHash.recommended()          # Argon2
 
 h = password_hash.hash("pw-ann")
@@ -337,12 +346,13 @@ print(h[:20])                                       # $argon2id$v=19$m=655   ←
 print(password_hash.verify("pw-ann", h), password_hash.verify("錯的", h))   # True False`),
 
       "**二、JWT。** 官方教學的說明：JWT 是把一個 JSON 物件編成一長串字串的標準；它**沒有加密**，任何人都能讀出內容，但它有**簽章**，所以你收到自己簽發的 token 時，能確認內容沒被改過。因此：**不要把機密資訊放進 JWT**；內容放最少的東西（使用者 ID 和到期時間）。用 `PyJWT`（`pip install pyjwt`）簽發與驗證：",
-      C(String.raw`import jwt
-from datetime import datetime, timedelta, timezone
+      C(String.raw`import jwt  # jwt：產生與驗證 JWT
+from datetime import datetime, timedelta, timezone  # datetime：日期時間型別；timedelta：表示一段時間長度；timezone：時區物件
 
 SECRET_KEY = os.environ["SECRET_KEY"]       # 長的隨機字串，放環境變數；洩漏就等於任何人都能偽造登入
 ALGORITHM = "HS256"
 
+# make_token：簽發 30 分鐘有效的 JWT，輸入使用者編號，輸出 token 字串
 def make_token(user_id: int) -> str:
     exp = datetime.now(timezone.utc) + timedelta(minutes=30)      # 短效期
     return jwt.encode({"sub": str(user_id), "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
@@ -352,14 +362,15 @@ payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])   # 一定要明
       "（產生足夠長的隨機金鑰可以用 `python -c \"import secrets; print(secrets.token_hex(32))\"`。）實測驗證三種壞 token 都被拒絕：用錯的金鑰簽的偽造 token、已過期的 token、演算法設成 `none` 的 token，全部回 `401`。這正是 `algorithms=[...]` 要明確指定的原因。",
 
       "**三、註冊、登入、取得目前使用者。** 用 FastAPI 的 `OAuth2PasswordBearer` 與 `Depends`。它還會讓 `/docs` 頁面出現「Authorize」按鈕可以直接測試。完整後端（實際跑過）：",
-      C(String.raw`from typing import Annotated
-import jwt
-from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jwt.exceptions import InvalidTokenError
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
+import jwt  # jwt：產生與驗證 JWT
+from fastapi import Depends, HTTPException  # Depends：宣告依賴，由框架幫你準備；HTTPException：丟出帶狀態碼的 HTTP 錯誤
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm  # OAuth2PasswordBearer：從請求標頭取出 Bearer token 的依賴；OAuth2PasswordRequestForm：讀取登入表單（帳號與密碼）的依賴
+from jwt.exceptions import InvalidTokenError  # InvalidTokenError：token 無效時的例外
 
 oauth2 = OAuth2PasswordBearer(tokenUrl="token")
 
+# register：註冊，使用者名稱已存在回 409，否則存下密碼雜湊，輸入註冊資料，輸出 {ok: True}
 @app.post("/register", status_code=201)
 def register(body: Reg, session: SessionDep):
     if session.exec(select(User).where(User.username == body.username)).first():
@@ -370,6 +381,7 @@ def register(body: Reg, session: SessionDep):
 
 DUMMY_HASH = password_hash.hash("dummy")     # 使用者不存在時也做一次雜湊，降低以回應時間差猜出帳號的可能
 
+# login：登入，驗證密碼（帳號不存在也做雜湊以免洩漏），成功回 token，輸入登入表單，輸出 token
 @app.post("/token")
 def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], session: SessionDep):
     user = session.exec(select(User).where(User.username == form.username)).first()
@@ -378,6 +390,7 @@ def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], session: Sessio
         raise HTTPException(401, "帳號或密碼錯誤", headers={"WWW-Authenticate": "Bearer"})
     return {"access_token": make_token(user.id), "token_type": "bearer"}
 
+# current_user：依賴函式，解開 token 找出目前使用者，無效就回 401，輸入 token，輸出使用者
 def current_user(token: Annotated[str, Depends(oauth2)], session: SessionDep) -> User:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -393,6 +406,7 @@ UserDep = Annotated[User, Depends(current_user)]`),
 
       "**四、授權：擁有者檢查（最容易漏掉的一環）。** 登入只告訴你「是誰」。每個存取資料的端點都要檢查**這筆資料是不是他的**。只用 ID 查資料而不檢查擁有者，任何登入使用者改一下網址的數字就能讀到別人的對話，這是 OWASP API 安全清單第一名的問題（Broken Object Level Authorization）。做法：查出來後比對 `user_id`，不符就回 `404`（而不是 `403`，不洩漏這筆資料存在）：",
       C(String.raw`@app.get("/conversations/{cid}")
+# get_conv：讀取一段對話，不是本人的一律回 404，輸入對話編號與目前使用者，輸出對話
 def get_conv(cid: int, user: UserDep, session: SessionDep):
     c = session.get(Conversation, cid)
     if not c or c.user_id != user.id:            # 擁有者檢查；不是你的一律回 404
@@ -435,7 +449,7 @@ def get_conv(cid: int, user: UserDep, session: SessionDep):
 
       "**資料表設計（對話、訊息、使用者）：** 一個使用者有多個對話，一個對話有多則訊息。外鍵加索引，因為最常用「某使用者的所有對話」與「某對話的所有訊息」查詢：",
       C(String.raw`# pip install sqlmodel
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, SQLModel, create_engine, select  # Field：替欄位加上限制與設定；Session：資料庫工作階段（一次對話單位）；SQLModel：結合 SQLAlchemy 與 pydantic 的資料模型基底；create_engine：建立資料庫連線引擎；select：組出 SELECT 查詢
 
 engine = create_engine("sqlite:///app.db", connect_args={"check_same_thread": False})
 # 換成 PostgreSQL 主要是改連線字串（另需安裝驅動，例如 psycopg）：
@@ -459,9 +473,10 @@ class Message(SQLModel, table=True):
       "`table=True` 表示這個類別對應一個資料表；`Field(index=True)` 會建立索引加速查詢（官方教學的說明）。",
 
       "**每個請求一個 Session（用 `yield` 依賴）。** `engine` 整個程式一個，`Session` 每個請求一個，用完自動關閉（官方教學的做法）：",
-      C(String.raw`from typing import Annotated
-from fastapi import Depends
+      C(String.raw`from typing import Annotated  # Annotated：替型別附加額外資訊
+from fastapi import Depends  # Depends：宣告依賴，由框架幫你準備
 
+# get_session：依賴函式，每個請求開一個資料庫 Session，用完自動關閉
 def get_session():
     with Session(engine) as session:     # 每個請求一個 session，用完自動關
         yield session
@@ -469,8 +484,9 @@ def get_session():
 SessionDep = Annotated[Session, Depends(get_session)]`),
 
       "**建立資料表與遷移：** 示範時可以在 `lifespan` 啟動時呼叫 `SQLModel.metadata.create_all(engine)`。官方教學明確說：正式環境應該用**遷移（migration）**腳本，目前可直接用 **Alembic**（SQLAlchemy 的遷移工具）。原因是 `create_all` 只會建立不存在的表，**不會修改已存在的表**；之後加欄位就得靠遷移。",
-      C(String.raw`from contextlib import asynccontextmanager
+      C(String.raw`from contextlib import asynccontextmanager  # asynccontextmanager：把非同步產生器變成 async with 可用的區塊
 
+# lifespan：應用啟動時建立資料表（示範用），輸入 app，輸出無
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     SQLModel.metadata.create_all(engine)       # 示範用；正式環境改用 Alembic 遷移
@@ -490,13 +506,15 @@ app = FastAPI(lifespan=lifespan)`),
       "**二、Redis 快取。** Redis 是記憶體型的鍵值資料庫，速度快，資料可以設**到期時間（TTL）**。在聊天產品裡常見兩個用途：",
       "**用途一：回應快取。** 完全相同的問題（同樣的模型、同樣的訊息）直接回上次的答案，省錢也省時間。鍵由請求內容的雜湊組成，並設 TTL。這適合 FAQ 式、答案不隨時間變的問題；**不適合個人化或需要最新資料的問題**，而且要注意不同使用者之間不能共用含個資的答案（鍵要包含使用者，或只快取不含個資的公共問題）。與 Anthropic 的 prompt caching 是不同層次：prompt caching 是模型端省輸入的錢，這裡是你自己整個答案的快取。",
       C(String.raw`# pip install redis ；本機要有 Redis 伺服器（下面用 fakeredis 驗證，指令與 redis-py 相同）
-import hashlib, json, redis
+import hashlib, json, redis  # hashlib：計算雜湊（例如 SHA256）；json：讀寫 JSON；redis：Redis 用戶端
 r = redis.Redis(host="localhost", port=6379, decode_responses=True)
 
+# cache_key：把模型與訊息序列化後取 SHA256 當快取鍵，輸入模型名與訊息，輸出鍵字串
 def cache_key(model, messages):
     raw = json.dumps({"m": model, "msgs": messages}, ensure_ascii=False, sort_keys=True)
     return "chat:" + hashlib.sha256(raw.encode()).hexdigest()
 
+# cached_answer：先查 Redis，有就直接回；沒有才呼叫模型並存入，輸入模型、訊息與存活秒數，輸出（回答，是否命中快取）
 def cached_answer(model, messages, ttl=3600):
     k = cache_key(model, messages)
     hit = r.get(k)
@@ -510,8 +528,9 @@ def cached_answer(model, messages, ttl=3600):
 # ('答案#1', False) ('答案#1', True)   模型呼叫次數: 1   ttl: 3600`),
 
       "**用途二：限流（rate limiting）。** 每個使用者每分鐘最多 N 次。最簡單的「固定視窗」做法：鍵 = 使用者 + 目前的分鐘，用 `INCR` 加一（Redis 的指令是原子的，多個程序同時加也不會漏算），第一次時設定到期時間。**`INCR` 和 `EXPIRE` 放進同一個 pipeline 一起送，並用 `NX` 只在還沒有 TTL 時才設定**，避免程序在兩步之間掛掉，留下永遠不會過期的鍵：",
-      C(String.raw`import time
+      C(String.raw`import time  # time：計時與暫停
 
+# allow：固定時間窗限流，用 Redis 計數，輸入使用者編號、上限與時間窗秒數，輸出 True（可放行）或 False
 def allow(user_id, limit=3, window=60):
     k = f"rl:{user_id}:{int(time.time() // window)}"
     p = r.pipeline()
@@ -556,8 +575,8 @@ def allow(user_id, limit=3, window=60):
       ] },
 
       "**第一級：FastAPI 內建的 `BackgroundTasks`。** 官方文件說明：回應送出之後，再執行指定的函式；適合寄信通知這類「客戶端不需要等」的小事。函式可以是 `def` 或 `async def`。最小版本再加上一張 `Job` 資料表記錄狀態，就是完整的提交／查詢流程（實際跑過）：",
-      C(String.raw`import uuid, time
-from fastapi import BackgroundTasks
+      C(String.raw`import uuid, time  # uuid：產生唯一識別碼；time：計時與暫停
+from fastapi import BackgroundTasks  # BackgroundTasks：請求結束後在背景執行的小任務
 
 class Job(SQLModel, table=True):
     id: str = Field(primary_key=True)
@@ -565,6 +584,7 @@ class Job(SQLModel, table=True):
     status: str = "queued"          # queued / running / done / failed
     result: str | None = None
 
+# run_job：背景工作，自己開 Session 更新狀態、做事、記錄成功或失敗，輸入工作編號與文字，輸出無
 def run_job(job_id: str, text: str):
     with Session(engine) as s:       # 背景工作要自己開 Session，不能用請求的那個（請求已經結束）
         job = s.get(Job, job_id); job.status = "running"; s.add(job); s.commit()
@@ -577,6 +597,7 @@ def run_job(job_id: str, text: str):
             job.status = "failed"                 # 一定要把失敗也記錄下來
         s.add(job); s.commit()
 
+# submit_job：建立工作紀錄並丟到背景執行，馬上回 202，輸入文字與目前使用者，輸出工作編號與查詢網址
 @app.post("/jobs", status_code=202)
 def submit_job(text: str, user: UserDep, session: SessionDep, bg: BackgroundTasks):
     job = Job(id=uuid.uuid4().hex, user_id=user.id)
@@ -584,6 +605,7 @@ def submit_job(text: str, user: UserDep, session: SessionDep, bg: BackgroundTask
     bg.add_task(run_job, job.id, text)            # 回應送出後才執行
     return {"job_id": job.id, "status_url": f"/jobs/{job.id}"}
 
+# job_status：查詢工作狀態，不是本人的工作一律 404，輸入工作編號與使用者，輸出狀態與結果
 @app.get("/jobs/{job_id}")
 def job_status(job_id: str, user: UserDep, session: SessionDep):
     job = session.get(Job, job_id)

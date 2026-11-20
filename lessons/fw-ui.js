@@ -124,6 +124,7 @@ demo.launch(share=True)
       C(String.raw`# Blocks 與事件監聽（改寫自官方 Blocks and Event Listeners，未執行）
 import gradio as gr  # gradio：快速建立機器學習網頁介面
 
+# greet：輸入一個名字（字串），輸出打招呼的句子（字串）；按鈕被點時會呼叫它
 def greet(name):
     return "Hello " + name + "!"
 

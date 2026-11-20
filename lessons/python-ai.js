@@ -19,7 +19,7 @@ $env:ANTHROPIC_API_KEY = "你的key"
 setx ANTHROPIC_API_KEY "你的key"`),
 
       "**第一次呼叫：**",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()          # 自動讀取環境變數
 
@@ -42,6 +42,7 @@ print(message.usage.input_tokens, message.usage.output_tokens)   # 用量`),
       "**多輪對話：** API 不會記得上一輪，要自己把歷史每次都帶上去：",
       C(String.raw`history = []
 
+# chat：把使用者訊息加進歷史、呼叫模型、記下回答，輸入文字，輸出回答
 def chat(user_text):
     history.append({"role": "user", "content": user_text})
     message = client.messages.create(
@@ -90,8 +91,8 @@ except anthropic.APIStatusError as e:
       C(String.raw`pip install pydantic`),
 
       "**定義模型並驗證：**",
-      C(String.raw`from pydantic import BaseModel, Field, ValidationError
-from typing import Literal
+      C(String.raw`from pydantic import BaseModel, Field, ValidationError  # BaseModel：資料模型的基底類別，會自動驗證欄位；Field：替欄位加上限制與設定；ValidationError：資料驗證失敗時丟出的例外
+from typing import Literal  # Literal：限定只能是某幾個固定值
 
 class Review(BaseModel):
     sentiment: Literal["正面", "負面", "中性"]
@@ -114,12 +115,13 @@ except ValidationError as e:
     print(e)              # 列出 sentiment 與 score 各自哪裡不合法`),
 
       "**搭配 LLM：** 在提示裡附上格式說明，拿到回覆後驗證。`model_json_schema()` 能自動產生 JSON schema：",
-      C(String.raw`import json
+      C(String.raw`import json  # json：讀寫 JSON
 
 schema = json.dumps(Review.model_json_schema(), ensure_ascii=False)
 prompt = f"請分析這則評論，只輸出符合以下 JSON schema 的 JSON：\n{schema}\n\n評論：這個產品很好用"
 
 # text = 呼叫 LLM 得到的回覆文字
+# parse_review：去掉模型常包在外面的程式碼區塊標記後，驗證成 Review 物件，輸入文字，輸出 Review；格式不符會丟 ValidationError
 def parse_review(text: str) -> Review:
     fence = chr(96) * 3                     # 三個反引號（模型常用來包住程式碼區塊）
     text = text.strip()
@@ -142,7 +144,7 @@ def parse_review(text: str) -> Review:
       C(String.raw`pip install httpx`),
 
       "**GET 與 POST：**",
-      C(String.raw`import httpx
+      C(String.raw`import httpx  # httpx：HTTP 用戶端（支援同步與非同步）
 
 # GET，帶查詢參數
 r = httpx.get("https://httpbin.org/get", params={"q": "python"}, timeout=10)
@@ -165,8 +167,9 @@ r = httpx.post(
         print(r.json()["args"])`),
 
       "**非同步版本**（搭配前面的 async / await）：",
-      C(String.raw`import asyncio
+      C(String.raw`import asyncio  # asyncio：非同步執行與等待
 
+# main：用 httpx 非同步用戶端同時送出多個請求並等全部完成，輸入無，輸出無
 async def main():
     async with httpx.AsyncClient(timeout=10) as client:
         responses = await asyncio.gather(
@@ -203,22 +206,25 @@ asyncio.run(main())`),
       "PowerShell 裡有中括號的參數要加引號，不然可能被當成特殊語法。",
 
       "**最小範例**（存成 `main.py`）：",
-      C(String.raw`from fastapi import FastAPI
-from pydantic import BaseModel
+      C(String.raw`from fastapi import FastAPI  # FastAPI：建立應用程式物件
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 app = FastAPI()
 
 class Question(BaseModel):
     text: str
 
+# health：健康檢查端點，輸出 {ok: True}
 @app.get("/health")
 def health():
     return {"ok": True}
 
+# hello：路徑參數 name 加查詢參數 lang，輸入名字與語言，輸出問候字典
 @app.get("/hello/{name}")                 # 路徑參數
 def hello(name: str, lang: str = "zh"):   # 查詢參數：/hello/小明?lang=en
     return {"message": f"你好，{name}", "lang": lang}
 
+# ask：接收 Question 並回傳『你問的是…』的示範端點，輸入 Question，輸出字典
 @app.post("/ask")                         # 請求內容用 Pydantic 自動驗證
 async def ask(q: Question):
     return {"answer": f"你問的是：{q.text}"}`),
@@ -228,12 +234,13 @@ async def ask(q: Question):
       "啟動後開啟 `http://127.0.0.1:8000/docs`，就能直接在網頁上測試每個 API，不用另外寫測試工具。程式改動後會自動重新載入。",
 
       "**接上 LLM 的端點架構：**",
-      C(String.raw`import anthropic
-from fastapi import FastAPI, HTTPException
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
+from fastapi import FastAPI, HTTPException  # FastAPI：建立應用程式物件；HTTPException：丟出帶狀態碼的 HTTP 錯誤
 
 app = FastAPI()
 client = anthropic.AsyncAnthropic()        # 非同步版本，不會卡住伺服器
 
+# ask：非同步呼叫模型回答問題，輸入 Question，輸出回答（錯誤時另外處理）
 @app.post("/ask")
 async def ask(q: Question):
     try:
@@ -247,7 +254,7 @@ async def ask(q: Question):
     return {"answer": "".join(b.text for b in message.content if b.type == "text")}`),
 
       "**前端跨網域呼叫時要設定 CORS：**",
-      C(String.raw`from fastapi.middleware.cors import CORSMiddleware
+      C(String.raw`from fastapi.middleware.cors import CORSMiddleware  # CORSMiddleware：設定跨來源存取（CORS）規則
 
 app.add_middleware(
     CORSMiddleware,
@@ -271,7 +278,7 @@ app.add_middleware(
       C(String.raw`pip install pandas numpy`),
 
       "**pandas：讀檔、查看、篩選**",
-      C(String.raw`import pandas as pd
+      C(String.raw`import pandas as pd  # pandas：表格資料處理
 
 df = pd.read_csv("people.csv", encoding="utf-8-sig")   # 讀 CSV
 print(df.head())             # 前 5 列
@@ -290,7 +297,7 @@ df.sort_values("age", ascending=False)
 df.to_csv("out.csv", index=False, encoding="utf-8-sig")   # 存檔`),
 
       "**numpy：向量運算。** 一次對整排數字計算，比自己寫迴圈快很多：",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
 a = np.array([1, 2, 3])
 b = np.array([4, 5, 6])
@@ -300,7 +307,8 @@ print(a.mean(), a.sum(), a.shape)
 print(np.dot(a, b))     # 32        內積`),
 
       "**跟 AI 的關係：算兩段文字的 embedding 向量有多相似**（餘弦相似度）。越接近 1 代表意思越相近，這正是 RAG 檢索的基本原理：",
-      C(String.raw`def cosine(a, b):
+      C(String.raw`# cosine：餘弦相似度，輸入兩個向量，輸出 -1 到 1 的數值，越大越相近
+def cosine(a, b):
     a, b = np.array(a), np.array(b)
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 

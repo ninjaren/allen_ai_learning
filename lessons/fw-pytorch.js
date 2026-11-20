@@ -34,7 +34,7 @@ print(x)
 # 檢查 PyTorch 是否能使用你的 NVIDIA GPU（CUDA）；沒有顯卡或裝的是 CPU 版會得到 False
 print(torch.cuda.is_available())`),
       "**張量（官方 Tensors 教學）：** 建立方式：",
-      C(String.raw`import torch
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
 import numpy as np  # numpy：陣列與數值運算
 
 # 1. 從資料建立：dtype 會自動推斷（整數得 int64，小數得 float32）
@@ -107,7 +107,7 @@ torch.stack([a, b], dim=0).shape    # (2, 2, 3)：新增一個維度，把兩個
         "**grad_fn：**每個非葉節點會記住『是哪個函式產生了我』，存在 grad_fn 屬性（例如 AddBackward0）。",
         "**backward()：**對損失呼叫 loss.backward()，PyTorch 沿著圖往回走，用鏈鎖法則算出每個需要梯度的**葉張量**的梯度，存在它的 .grad 屬性。沒有參數的 backward() 等於傳入梯度 1.0，適用於純量損失。",
       ] },
-      C(String.raw`import torch
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
 
 # 一個最小的例子：預測值 = w * x，損失 = (預測 - 目標)^2
 x = torch.tensor(2.0)                      # 輸入（不需要梯度）
@@ -159,7 +159,7 @@ frozen = w.detach()           # frozen 與 w 共用資料，但 frozen 不會參
       { note: "**白話版：** nn.Module 是『神經網路的零件盒』：模型本身是一個 Module，裡面的每一層也是 Module，大 Module 裡面可以裝小 Module。你只需要寫兩件事：有哪些層（建構時）、資料怎麼流過這些層（forward）。看開源模型的程式碼，本質上就是在看這個巢狀結構。" },
       "**PyTorch 裡幾乎所有東西都是 nn.Module：一層、一個區塊、整個模型，全都是。** 一個 Module 可以包含其他 Module，所以模型是一棵由模組組成的樹。這個遞迴的結構，就是讀開源模型程式碼時你面對的東西。",
       "**寫法（官方 Build the Neural Network 教學）：** 繼承 nn.Module，在 __init__ 定義有哪些層，在 forward 定義資料怎麼流過它們。",
-      C(String.raw`import torch
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
 from torch import nn  # nn：PyTorch 的神經網路層與模組
 
 class NeuralNetwork(nn.Module):
@@ -241,7 +241,7 @@ print("總參數量：", total)
       ] } },
       "**損失函式：** 把『預測與答案差多少』變成一個數字。官方教學用 nn.CrossEntropyLoss（分類），並提到 nn.MSELoss 是迴歸（預測連續數值）的常見選擇。**關鍵：CrossEntropyLoss 要的是原始 logits，它內部會自己做正規化。所以模型最後不要先接 Softmax 再丟進去**（官方範例也是模型輸出 logits 直接給它）。",
       "**最佳化器：** 負責『依梯度更新參數』。官方教學用 SGD（隨機梯度下降），並提到還有 Adam、RMSProp 等。官方 torch.optim 文件列出的演算法包括 SGD（可帶 momentum）、Adam 與 AdamW（AdamW 把權重衰減（weight decay）解耦）、Adagrad、RMSprop、NAdam、RAdam、LBFGS 等。建構時把 model.parameters() 與選項（學習率等）交給它。",
-      C(String.raw`import torch
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
 from torch import nn  # nn：PyTorch 的神經網路層與模組
 
 learning_rate = 1e-3
@@ -253,7 +253,8 @@ optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 # model.parameters()：告訴最佳化器『要更新哪些參數』
 # 換成 Adam 只要一行：torch.optim.Adam(model.parameters(), lr=learning_rate)`),
       "**訓練迴圈（官方）：** 每個批次做這幾件事。官方文字描述是三步（清零梯度、算損失與梯度、更新參數）；官方範例程式碼的實際順序是 backward、step、zero_grad，和文字描述的順序不同，**兩種都成立：重點是『每次 backward 之前，梯度必須是乾淨的』**（因為梯度會累加）。",
-      C(String.raw`def train_loop(dataloader, model, loss_fn, optimizer):
+      C(String.raw`# train_loop：跑一輪訓練，每批做前向、損失、反向、更新、清零梯度，輸入資料載入器、模型、損失函式與優化器，輸出無
+def train_loop(dataloader, model, loss_fn, optimizer):
     model.train()                       # 切到訓練模式：Dropout 啟用、BatchNorm 使用批次統計
     for batch, (X, y) in enumerate(dataloader):    # 每次迭代拿一批輸入 X 與答案 y
         pred = model(X)                 # 1. 前向傳播：得到預測（logits）
@@ -310,7 +311,7 @@ for epoch in range(epochs):             # 每個 epoch 完整看過一遍訓練�
         "**__len__：**回傳樣本總數。",
         "**__getitem__：**依索引取出『一筆』樣本：讀檔、套用轉換、回傳（輸入, 標籤）。",
       ] },
-      C(String.raw`import os
+      C(String.raw`import os  # os：作業系統功能（路徑、環境變數）
 import pandas as pd  # pandas：表格資料處理
 from torch.utils.data import Dataset, DataLoader  # Dataset：自訂資料集的基底類別；DataLoader：把資料集分批、洗牌後送進模型
 
@@ -373,7 +374,7 @@ print(train_labels.size())     # 官方範例：torch.Size([64])             = �
       { note: "**白話版：** 這一課處理『模型做完之後的事』：存檔（state_dict 是把所有參數存成一份清單）、載入、拿來推論（只用不訓練，要切到評估模式並關掉梯度）、放到顯示卡上加速（模型和資料要在同一個地方），以及用較省記憶體的精度跑。可以想成：訓練好的模型要能存起來、搬到別台機器、而且跑得動。" },
       "**這一課是你在應用層最常實際碰到的：** 模型訓練完（或別人訓練好）要怎麼存、怎麼載入、怎麼拿來推論、怎麼放到 GPU、怎麼省記憶體。這些步驟做錯，輕則結果亂掉，重則（載入不可信的檔案）執行了別人的惡意程式碼。",
       "**存檔與載入：state_dict（官方 Save and Load 教學）。** 模型學到的參數都在 state_dict 這個字典裡，鍵是參數名稱（第 3 課的 named_parameters），值是張量。",
-      C(String.raw`import torch
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
 import torchvision.models as models      # 官方範例用 torchvision 的現成模型
 
 # 存：只存參數（不存程式碼結構），這是官方認定的最佳做法
@@ -471,7 +472,7 @@ loss.backward()                          # backward 在 autocast 區塊外面
         "**對照 state_dict 的鍵名：**named_parameters 的名稱就是權重檔的鍵，也能反推程式碼的層次結構。",
       ] },
       "**典型語言模型的骨架（形狀為推導，非執行結果）：**",
-      C(String.raw`import torch
+      C(String.raw`import torch  # torch：PyTorch：張量運算與神經網路
 from torch import nn  # nn：PyTorch 的神經網路層與模組
 
 class TinyLM(nn.Module):

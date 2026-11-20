@@ -93,11 +93,11 @@ Copy-Item -Recurse ..\fishqa\data\knowledge data\knowledge
 Copy-Item -Recurse ..\fishqa\fishqa fishqa
 Remove-Item fishqa\llm.py, fishqa\answer.py, fishqa\embed.py, fishqa\store.py, fishqa\search.py`),
       "**第三步：把專案 2 的 keyword.py 換成可以調參數的版本。** 原本的版本把 `k1`、`b`、停用字都寫死在裡面；要做參數實驗，它們必須是可以傳進去的參數。另外加一個『標題加權』選項（第 4 課會用到）。直接覆蓋 fishqa/keyword.py：",
-      C(String.raw`import math
-import re
-from collections import Counter
+      C(String.raw`import math  # math：數學函式
+import re  # re：正規表達式
+from collections import Counter  # Counter：計數器，統計每個項目出現幾次
 
-from .chunking import Chunk
+from .chunking import Chunk  # Chunk：切好的一段文字（含來源、標題與內文）
 
 # 問句裡幾乎每題都有、沒有檢索價值的字，直接略過（否則每張卡片都會因為它們得分）
 STOP = set("的了嗎呢吧是在有要會可以怎麼什麼哪個那個這個一個和與或還是")
@@ -124,6 +124,7 @@ def tokenize(text: str, use_stop: bool = True) -> list[str]:
 class BM25:
     """專案 2 的 BM25，多了三個可以實驗的旋鈕：k1、b（原本就有，現在可傳入）、use_stop 與 title_boost。"""
 
+    # __init__：記下段落與 BM25 的調整參數（k1、b、是否去停用詞、標題加權），並統計每段的詞頻與長度
     def __init__(self, chunks: list[Chunk], k1: float = 1.5, b: float = 0.75,
                  use_stop: bool = True, title_boost: int = 0):
         self.chunks = chunks
@@ -143,6 +144,7 @@ class BM25:
         # idf：越少卡片出現的詞，權重越高
         self.idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in df.items()}
 
+    # search：輸入問題與 k；對每個段落算 BM25 分數，回傳分數最高的前 k 個（段落, 分數）
     def search(self, query: str, k: int = 5) -> list[tuple[Chunk, float]]:
         q = tokenize(query, self.use_stop)            # 查詢也要用同樣的切詞方式
         scored = []
@@ -332,8 +334,8 @@ class BM25:
       { note: "**白話版：** 做實驗最怕的事是『我記得上一版好像比較好，但設定是什麼我忘了』。解法很簡單：每次實驗都把『用了什麼設定』和『每一題的結果』存成一個檔案。以後想比較，打開兩個檔案就好，不用靠記憶。這個小習慣是整個專案最值錢的東西。" },
       "**步驟一：把檢索包成『可以調參數』的函式，fisheval/retrieval.py。**",
       C(String.raw`"""把專案 2 的關鍵字檢索包成一個『可以調參數』的函式，方便做實驗。"""
-from fishqa.chunking import load_corpus
-from fishqa.keyword import BM25
+from fishqa.chunking import load_corpus  # load_corpus：讀資料夾所有 .txt 並切成段落
+from fishqa.keyword import BM25  # BM25：BM25 關鍵字檢索
 
 
 def build_retriever(folder: str = "data/knowledge", max_chars: int = 600, k1: float = 1.5, b: float = 0.75,
@@ -351,13 +353,13 @@ def build_retriever(folder: str = "data/knowledge", max_chars: int = 600, k1: fl
       "它每次都用新的參數重新切塊、重建索引。因為切塊大小也是我們想調的參數，所以不能共用同一份索引。",
       "**步驟二：寫實驗紀錄的程式，fisheval/experiments.py。**",
       C(String.raw`"""實驗紀錄：每一次評測都存下『用了什麼設定、每一題的結果』，之後才能比較。"""
-import hashlib
-import json
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
-from pathlib import Path
+import hashlib  # hashlib：計算雜湊（例如 SHA256）
+import json  # json：讀寫 JSON
+from dataclasses import asdict, dataclass, field  # asdict：把 dataclass 轉成字典；dataclass：用裝飾器快速定義資料類別；field：設定 dataclass 欄位的預設值等細節
+from datetime import datetime  # datetime：日期時間型別
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from fishqa.evaluate import is_hit
+from fishqa.evaluate import is_hit  # is_hit：判斷這一塊算不算答對
 
 TOP_K = 5          # 每題檢索前幾名；名次只記到這裡，沒找到就是 None
 
@@ -412,6 +414,7 @@ def save_run(run: Run, folder: str = "runs") -> Path:
     return path
 
 
+# load_run：讀回存好的實驗結果 JSON，還原成 Run 物件
 def load_run(path: str) -> Run:
     return Run(**json.loads(Path(path).read_text(encoding="utf-8")))
 
@@ -450,9 +453,9 @@ WindowsPath('runs/baseline_all.json')
       "這是我實際跑的結果：30 題，前 1 名命中 47%、前 3 名命中 77%、前 5 名命中 87%，MRR 0.63。這就是**基準線**，之後所有改動都要和它比。打開 runs/baseline_all.json，你會看到設定和每一題的名次。",
       "**步驟四：寫一個小工具，並排比較兩次實驗，compare_runs.py。**",
       C(String.raw`# compare_runs.py：把兩次存下來的實驗並排比較。用法：python compare_runs.py dev_baseline dev_title_boost=3
-import sys
+import sys  # sys：Python 直譯器相關（參數、路徑）
 
-from fisheval.experiments import compare, load_run
+from fisheval.experiments import compare, load_run  # compare：並排比較兩次實驗的指標；load_run：讀回存好的實驗結果
 
 a, b = sys.argv[1], sys.argv[2]                       # 兩次實驗的名稱（就是 runs 資料夾裡的檔名，不含 .json）
 compare(load_run(f"runs/{a}.json"), load_run(f"runs/{b}.json"))`),
@@ -504,10 +507,10 @@ mrr                       0.54                  0.64
       { note: "**為什麼這樣做：** 為什麼用雜湊而不是 `random.shuffle`？因為用隨機的話，每次分割結果不同，上一次在留存集的題目，這次可能跑去開發集，等於留存集被你看過了。用問題文字的雜湊值決定它屬於哪一邊，**同一題永遠在同一邊，新增題目也不會改變舊題目的歸屬**。這個小設計，是為了避免你不小心偷看留存集。" },
       "**寫 baseline.py：** 分別量全部、開發集、留存集的基準線：",
       C(String.raw`# baseline.py：用專案 2 的預設設定跑一次，存成第一份實驗紀錄
-import json
+import json  # json：讀寫 JSON
 
-from fisheval.experiments import evaluate, save_run, split_questions
-from fisheval.retrieval import build_retriever
+from fisheval.experiments import evaluate, save_run, split_questions  # evaluate：對每一題檢索並記下答案出現的名次；save_run：把實驗結果存成 JSON；split_questions：把題目分成開發集與留存集
+from fisheval.retrieval import build_retriever  # build_retriever：建立檢索函式（呼叫時給問題與 k，回傳前 k 段）
 
 items = json.load(open("data/questions.json", encoding="utf-8"))
 dev, test = split_questions(items)                  # 依雜湊值分成開發集與留存集
@@ -571,10 +574,10 @@ baseline_test  題數  7  命中@1 86%  @3 100%  @5 100%  MRR 0.93`),
       ] } },
       "**步驟一：寫掃描腳本，sweep.py。** 以基準線為中心，一次只改一個設定：",
       C(String.raw`# sweep.py：一次只改一個設定，在『開發集』上比較；挑出最好的，最後才到『留存集』驗證一次
-import json
+import json  # json：讀寫 JSON
 
-from fisheval.experiments import evaluate, save_run, split_questions
-from fisheval.retrieval import build_retriever
+from fisheval.experiments import evaluate, save_run, split_questions  # evaluate：對每一題檢索並記下答案出現的名次；save_run：把實驗結果存成 JSON；split_questions：把題目分成開發集與留存集
+from fisheval.retrieval import build_retriever  # build_retriever：建立檢索函式（呼叫時給問題與 k，回傳前 k 段）
 
 items = json.load(open("data/questions.json", encoding="utf-8"))
 dev, test = split_questions(items)                  # 這個腳本只用開發集，留存集不碰
@@ -628,10 +631,10 @@ title_boost=3      48%   83%   83%   0.64`),
       ] },
       "**步驟二：把有用的組合起來，combine.py。** 在開發集選出最好的一組，再用留存集驗證，並和基準線比較：",
       C(String.raw`# combine.py：把有效的改動組合起來，在開發集挑最好的一組，最後用留存集驗證，並和基準線比較
-import json
+import json  # json：讀寫 JSON
 
-from fisheval.experiments import compare, evaluate, save_run, split_questions
-from fisheval.retrieval import build_retriever
+from fisheval.experiments import compare, evaluate, save_run, split_questions  # compare：並排比較兩次實驗的指標；evaluate：對每一題檢索並記下答案出現的名次；save_run：把實驗結果存成 JSON；split_questions：把題目分成開發集與留存集
+from fisheval.retrieval import build_retriever  # build_retriever：建立檢索函式（呼叫時給問題與 k，回傳前 k 段）
 
 items = json.load(open("data/questions.json", encoding="utf-8"))
 dev, test = split_questions(items)
@@ -733,7 +736,7 @@ mrr                       0.63                  0.72
       { note: "**這一課所有程式，我都沒有用真的金鑰打過真實模型。** 我用本機假伺服器接上真的 anthropic 與 google-genai 套件驗證了：用量欄位怎麼讀、怎麼換算成花費。價格是我從官方頁面讀到的（2026-11-13），模型的實際用量與延遲，要等你自己跑才有。" },
       "**步驟一：記下官方價格與計算花費，fisheval/meter.py。**",
       C(String.raw`"""量用量與花費。價格是『每百萬 token（MTok）多少美元』，抄自官方定價頁，日期寫在下面。"""
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field  # dataclass：用裝飾器快速定義資料類別；field：設定 dataclass 欄位的預設值等細節
 
 PRICES_AS_OF = "2026-11-13"        # 價格會變，使用前先到官方定價頁核對
 PRICES = {
@@ -757,6 +760,7 @@ class Usage:
     cache_write: int = 0        # 寫進快取的輸入
     seconds: float = 0.0        # 這次呼叫花幾秒
 
+    # cost_usd：依單價表換算這次呼叫花了多少美元；查不到價格就報錯，不給出錯誤的數字
     @property
     def cost_usd(self) -> float:
         p = PRICES.get(self.model)
@@ -774,9 +778,11 @@ class UsageLog:
     """一串呼叫的紀錄，可以加總。"""
     records: list[Usage] = field(default_factory=list)
 
+    # add：把一次呼叫的用量加進紀錄
     def add(self, usage: Usage) -> None:
         self.records.append(usage)
 
+    # summary：把全部紀錄加總成摘要（呼叫次數、token、花費等）
     def summary(self) -> dict:
         n = len(self.records)
         return {
@@ -819,13 +825,13 @@ def from_gemini(model: str, usage, seconds: float) -> Usage:
       ] },
       "**步驟二：在每次呼叫之後記錄用量，fisheval/llm.py。** 這是專案 1 的 llm.py，多加了三件事：每次呼叫計時、讀取 usage、存進 `UsageLog`；一個 `cache_prompt` 選項（第 7 課用）。呼叫方式完全不變。",
       C(String.raw`"""專案 1 的 llm.py，加上『每次呼叫都記錄用量與花費』。其他程式的用法完全不變。"""
-import os
-import time
-from typing import Protocol, TypeVar
+import os  # os：作業系統功能（路徑、環境變數）
+import time  # time：計時與暫停
+from typing import Protocol, TypeVar  # Protocol：定義介面（只要有這些方法就算符合）；TypeVar：宣告泛型的型別變數
 
-from pydantic import BaseModel
+from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
-from .meter import UsageLog, from_claude, from_gemini
+from .meter import UsageLog, from_claude, from_gemini  # UsageLog：一串呼叫的用量紀錄，可加總；from_claude：把 Claude 回傳的用量整理成 Usage；from_gemini：把 Gemini 回傳的用量整理成 Usage
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -834,13 +840,16 @@ class LLM(Protocol):
     name: str
     log: UsageLog              # 這一版新增：每次呼叫的用量都記在這裡
 
+    # extract：介面方法。回傳驗證過的結構化物件
     def extract(self, system: str, user: str, schema: type[T]) -> T: ...
+    # text：介面方法。回傳純文字
     def text(self, system: str, user: str) -> str: ...
 
 
 class ClaudeLLM:
+    # __init__：建立 Claude 模型包裝。記下模型名稱與是否啟用提示快取，並建立用戶端
     def __init__(self, model: str = "claude-haiku-5-5", cache_prompt: bool = False, **client_kwargs):
-        import anthropic
+        import anthropic  # anthropic：Anthropic（Claude）官方 SDK
         self.name = model
         self.model = model
         self.cache_prompt = cache_prompt          # 打開就在請求最上層加 cache_control（提示快取）
@@ -851,6 +860,7 @@ class ClaudeLLM:
         """要額外帶進請求的參數。自動快取只要在最上層加一個 cache_control。"""
         return {"cache_control": {"type": "ephemeral"}} if self.cache_prompt else {}
 
+    # extract：Claude 版。用 parse 取得結構化物件，同時記下用量與耗時
     def extract(self, system, user, schema):
         start = time.time()
         response = self.client.messages.parse(
@@ -861,6 +871,7 @@ class ClaudeLLM:
         self.log.add(from_claude(self.model, response.usage, time.time() - start))
         return response.parsed_output
 
+    # text：Claude 版。取得純文字回答，同時記下用量與耗時
     def text(self, system, user):
         start = time.time()
         response = self.client.messages.create(
@@ -872,13 +883,15 @@ class ClaudeLLM:
 
 
 class GeminiLLM:
+    # __init__：建立 Gemini 模型包裝，記下模型名稱並建立用戶端
     def __init__(self, model: str = "gemini-3.5-flash-lite", **client_kwargs):
-        from google import genai
+        from google import genai  # genai：Google 的 Gemini SDK
         self.name = model
         self.model = model
         self.log = UsageLog()
         self.client = genai.Client(**client_kwargs)
 
+    # extract：Gemini 版。要求回覆符合 schema，並記下用量與耗時
     def extract(self, system, user, schema):
         start = time.time()
         interaction = self.client.interactions.create(
@@ -889,6 +902,7 @@ class GeminiLLM:
         self.log.add(from_gemini(self.model, interaction.usage, time.time() - start))
         return schema.model_validate_json(interaction.output_text)
 
+    # text：Gemini 版。取得純文字回答，並記下用量與耗時
     def text(self, system, user):
         start = time.time()
         interaction = self.client.interactions.create(
@@ -927,7 +941,7 @@ claude.text("系統", "問題二")`),
 Gemini：未走快取輸入 200、讀快取 800、輸出（含思考）200、花費 $0.000584`),
       "（這是假伺服器回的假用量，用來驗證換算，不是真實模型的用量。）可以手算驗證：Claude 第一次是 `120 乘 0.10 加 40 乘 0.50 加 3000 乘 0.125`，等於 407，除以一百萬就是 0.000407 美元。第二次寫入變成讀取，花費從 0.000407 掉到 0.000062，這就是快取的效果。",
       "**步驟四：用在你的評測上。** 在任何跑評測的程式最後，印出用量：",
-      C(String.raw`from fisheval.llm import get_llm
+      C(String.raw`from fisheval.llm import get_llm  # get_llm：依名稱挑出用哪一家模型並回傳模型物件
 
 llm = get_llm("claude")
 # ... 跑你的評測（專案 1 的抽取、專案 3 的 Agent 評測都可以換成這個 llm）...
@@ -957,9 +971,9 @@ print(f"呼叫 {s['calls']} 次，輸入 {s['input_tokens']}、輸出 {s['output
       { note: "**先說清楚：這一課的成績是電腦用亂數模擬出來的，不是任何真實模型的表現。** 我沒有用真的模型金鑰跑 A/B 比較。這樣做的目的，是讓你看到『題數與重複次數，如何決定你能不能看出差別』。這個道理不因為資料是模擬的而改變，而且用模擬資料，我可以事先知道真正的答案（B 比 A 好 10 個百分點），才能檢查比較程式有沒有判斷對。" },
       "**步驟：寫比較程式，fisheval/ab.py。**",
       C(String.raw`"""A/B 比較：兩個做法（兩份提示詞、兩個模型…）誰比較好？差距是真的，還是運氣？"""
-from dataclasses import dataclass
+from dataclasses import dataclass  # dataclass：用裝飾器快速定義資料類別
 
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 
 @dataclass
@@ -1003,9 +1017,9 @@ def compare_scores(a: np.ndarray, b: np.ndarray, n_boot: int = 10_000, seed: int
       "**步驟：用模擬資料看看題數的影響。**",
       C(String.raw`# simulate_ab.py：用『模擬的資料』測試比較程式，並看看題數多少才看得出差別
 # 注意：這裡的成績是電腦亂數產生的，不是真的模型。目的只有一個：認識題數與重複次數的影響。
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
-from fisheval.ab import compare_scores
+from fisheval.ab import compare_scores  # compare_scores：用統計方法比較兩組分數是否真的有差
 
 rng = np.random.default_rng(42)         # 固定種子：每次執行結果都一樣
 
@@ -1049,8 +1063,8 @@ for n_items, trials in [(6, 1), (6, 3), (30, 1), (30, 3), (100, 3), (300, 3)]:
         "**差距越小，需要的題數越多：** 想分辨 2 個百分點的差距，需要的題數遠超過這張表。",
       ] },
       "**真實使用時，怎麼接到專案 1 或專案 3 的評測？** 概念是：兩個做法各自在同樣的題目上跑 N 次，每次記下每題的 0 或 1，組成兩個（題數，N）的陣列，丟進 `compare_scores`。以專案 1 的抽取為例（下面的程式我沒有用真的模型跑過，只是示範接法）：",
-      C(String.raw`import numpy as np
-from fisheval.ab import compare_scores
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
+from fisheval.ab import compare_scores  # compare_scores：用統計方法比較兩組分數是否真的有差
 
 
 def run_variant(llm, system_prompt, notes, gold, today, trials=3):
@@ -1092,7 +1106,7 @@ print(compare_scores(a, b))                              # 看差距的信賴區
       "**先做試算，再決定值不值得。** 寫 estimate_savings.py：",
       C(String.raw`# estimate_savings.py：用官方價格算『提示快取』和『批次』大概能省多少。
 # 這是試算，不是量測：情境是我假設的，請換成你自己的數字。
-from fisheval.meter import PRICES, PRICES_AS_OF
+from fisheval.meter import PRICES, PRICES_AS_OF  # PRICES：各模型的單價表；PRICES_AS_OF：單價表的查價日期
 
 # 情境：評測一次要呼叫 100 次。每次都有一段相同的開頭（系統提示詞加工具說明，3000 token），
 # 再加上每題不同的 200 token 輸入，模型輸出 300 token。100 次都在 5 分鐘內打完，所以快取一直有效。
@@ -1156,17 +1170,18 @@ print(u.cache_creation_input_tokens, u.cache_read_input_tokens, u.input_tokens)`
       "**批次 API：** 評測是最典型的批次工作：幾十到幾百個互相獨立的請求，不趕時間。Claude 的批次輸入與輸出都打五折，多半一小時內完成，結果保存一段時間。你要把請求打包成一批、送出、等、再讀回結果。實作細節見官方的批次處理文件（本課開頭的連結），這個專案沒有實作。",
       "**第四種，最簡單也最有用：本機答案快取，fisheval/cache.py。** 評測時，你改了提示詞 A，但題目 B、C、D 的輸入完全沒變，為什麼要再付一次錢？",
       C(String.raw`"""把『同樣的問題問同一個模型』的答案存在本機。評測重跑時，沒改過的題目完全不用再花錢。"""
-import hashlib
-import json
-import sqlite3
-from pathlib import Path
+import hashlib  # hashlib：計算雜湊（例如 SHA256）
+import json  # json：讀寫 JSON
+import sqlite3  # sqlite3：內建的 SQLite 資料庫
+from pathlib import Path  # Path：處理檔案路徑的物件
 
-from .meter import UsageLog
+from .meter import UsageLog  # UsageLog：一串呼叫的用量紀錄，可加總
 
 
 class CachedLLM:
     """包在任何 LLM 外面的快取層。用法：llm = CachedLLM(get_llm("claude"))，其他程式完全不用改。"""
 
+    # __init__：包住另一個模型，並開啟 SQLite 快取檔；只記錄真的打出去的呼叫
     def __init__(self, llm, path: str = ".cache/llm_cache.sqlite"):
         self.llm = llm
         self.name = llm.name
@@ -1176,20 +1191,24 @@ class CachedLLM:
         self.db = sqlite3.connect(path)          # SQLite：單一檔案、不用額外服務、Python 內建
         self.db.execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT)")
 
+    # _key：算出快取鑰匙。把模型、類型、系統提示、使用者訊息與輸出格式一起納入，任何一項變了鑰匙就不同
     def _key(self, kind: str, system: str, user: str, schema=None) -> str:
         # 鑰匙要包含『會影響答案的一切』：模型、類型、系統提示詞、使用者訊息、輸出格式
         # 少了任何一個，就可能拿到不屬於這個請求的舊答案；提示詞一改，鑰匙就變，快取自動失效
         parts = [self.llm.name, kind, system, user, schema.model_json_schema() if schema else None]
         return hashlib.sha256(json.dumps(parts, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
+    # _lookup：用鑰匙查快取；找到就回傳存好的文字，找不到回傳 None
     def _lookup(self, key):
         row = self.db.execute("SELECT value FROM cache WHERE key = ?", (key,)).fetchone()
         return row[0] if row else None           # 沒找到回傳 None
 
+    # _store：把結果存進快取（同一把鑰匙會覆蓋）
     def _store(self, key, value: str):
         self.db.execute("INSERT OR REPLACE INTO cache VALUES (?, ?)", (key, value))
         self.db.commit()
 
+    # text：快取版。先查快取，命中就直接回傳（不花錢）；沒命中才呼叫真的模型並存起來
     def text(self, system, user):
         key = self._key("text", system, user)
         cached = self._lookup(key)
@@ -1203,6 +1222,7 @@ class CachedLLM:
         self._store(key, result)
         return result
 
+    # extract：快取版。同 text，但針對結構化輸出；命中就還原成物件，不呼叫模型
     def extract(self, system, user, schema):
         key = self._key("extract", system, user, schema)
         cached = self._lookup(key)
@@ -1250,11 +1270,11 @@ cached.text("系統", "不同的問題")`),
       { note: "**白話版：** 優化最後一個問題是：改了 A，變好了；過兩週改了 B，不小心把 A 的進步弄壞了，沒人發現。解法是把評測變成一個每次改動後一鍵就能跑的檢查，分數掉到底線以下就大聲報警。這叫回歸測試（regression test）。有了它，你才敢放心地繼續改東西。" },
       "**步驟一：寫一鍵檢查，run_all.py。** 用最終選定的參數，在開發集與留存集各量一次，和我們訂的底線比，不合格就用非零的結束碼結束：",
       C(String.raw`# run_all.py：每次改完程式或資料，跑一次，確認沒有退步。不合格就用非零的結束碼結束（可以接 CI）。
-import json
-import sys
+import json  # json：讀寫 JSON
+import sys  # sys：Python 直譯器相關（參數、路徑）
 
-from fisheval.experiments import evaluate, split_questions
-from fisheval.retrieval import build_retriever
+from fisheval.experiments import evaluate, split_questions  # evaluate：對每一題檢索並記下答案出現的名次；split_questions：把題目分成開發集與留存集
+from fisheval.retrieval import build_retriever  # build_retriever：建立檢索函式（呼叫時給問題與 k，回傳前 k 段）
 
 # 底線：訂在比現在的成績略低一點，抓的是「退步」，不是要求進步。訂太貼近現在，雜訊就會誤報
 THRESHOLDS = {
@@ -1285,14 +1305,15 @@ exit code: 0`),
       { note: "**為什麼這樣做：** 為什麼要用結束碼？因為『非零的結束碼代表失敗』是所有自動化工具的共同語言。以後你把這個腳本接到排程、Git 提交前的檢查，或雲端的 CI，它們都知道怎麼處理。你現在不需要那些，但這樣寫，之後接上去不用改一行。" },
       "**步驟二：用 pytest 包起來。** 寫成 pytest，就可以和其他測試一起用 `pytest` 一鍵執行（pytest 的用法見 [[fw-11]]）：",
       C(String.raw`# test_regression.py：把 run_all.py 的檢查寫成 pytest，之後就能用 pytest 一鍵執行
-import json
+import json  # json：讀寫 JSON
 
-import pytest
+import pytest  # pytest：Python 的測試框架
 
-from fisheval.experiments import evaluate, split_questions
-from fisheval.retrieval import build_retriever
+from fisheval.experiments import evaluate, split_questions  # evaluate：對每一題檢索並記下答案出現的名次；split_questions：把題目分成開發集與留存集
+from fisheval.retrieval import build_retriever  # build_retriever：建立檢索函式（呼叫時給問題與 k，回傳前 k 段）
 
 
+# metrics：fixture，建立一次檢索器並跑開發集與測試集，輸出兩組指標字典
 @pytest.fixture(scope="module")      # module：整個檔案只建立一次索引，兩個測試共用，所以很快
 def metrics():
     items = json.load(open("data/questions.json", encoding="utf-8"))
@@ -1305,10 +1326,12 @@ def metrics():
     }
 
 
+# test_dev_mrr_not_regressed：迴歸測試。開發集的 MRR 不能低於 0.60
 def test_dev_mrr_not_regressed(metrics):
     assert metrics["dev"]["mrr"] >= 0.60          # 開發集的 MRR 掉到 0.60 以下就是退步
 
 
+# test_test_hit5_not_regressed：迴歸測試。留存集前 5 名命中率不能低於 85%
 def test_test_hit5_not_regressed(metrics):
     assert metrics["test"]["hit@5"] >= 0.85       # 留存集前 5 名命中率掉到 85% 以下就是退步`),
       C(String.raw`pytest -q test_regression.py

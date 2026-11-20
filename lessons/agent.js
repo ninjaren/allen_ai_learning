@@ -31,8 +31,8 @@ window.LESSON = window.LESSON || {};
         "**牆上時間（wall-clock）上限：** 整個任務跑太久就中止（這裡沒有示範，用 `time.monotonic()` 比較即可）",
       ] },
 
-      C(String.raw`import json
-import anthropic
+      C(String.raw`import json  # json：讀寫 JSON
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 
 client = anthropic.Anthropic()
 
@@ -42,14 +42,17 @@ TOOLS = [{
     "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
 }]
 
+# run_tool：依工具名稱執行對應函式，輸入名稱與參數，輸出結果字串；名稱不認得就丟錯
 def run_tool(name, args):
     if name == "get_weather":
         return f"{args['city']}：晴，25 度"
     raise ValueError("未知的工具：" + name)
 
+# get_text：從模型回覆挑出文字區塊接成一個字串，輸入回覆物件，輸出文字
 def get_text(message):
     return "".join(b.text for b in message.content if b.type == "text")
 
+# agent：最小代理迴圈，輸入任務與各種上限（輪數、token、重複呼叫），輸出最後答案；超限就停
 def agent(task, max_turns=8, max_tokens_total=50_000, repeat_limit=2):
     messages = [{"role": "user", "content": task}]
     used = 0
@@ -105,9 +108,10 @@ def agent(task, max_turns=8, max_tokens_total=50_000, repeat_limit=2):
       C(String.raw`# PowerShell
 pip install claude-agent-sdk
 $env:ANTHROPIC_API_KEY = "你的金鑰"          # SDK 不會自己讀 .env 檔`),
-      C(String.raw`import asyncio
-from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+      C(String.raw`import asyncio  # asyncio：非同步執行與等待
+from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage  # query：向 Claude Agent SDK 送出任務並串流收回訊息；ClaudeAgentOptions：設定代理的選項（工具、權限、MCP 等）；ResultMessage：代理結束時的結果訊息型別
 
+# main：用 Agent SDK 的 query 串流收訊息，印出過程，輸入無，輸出無
 async def main():
     try:
         async for message in query(
@@ -151,15 +155,17 @@ asyncio.run(main())`),
       "**1. ReAct（Reason + Act）：** 想一步、做一步、看結果、再想。論文（連結在上方）提出讓模型交錯產生「推理」和「行動」。你已經在用了：「工具呼叫迴圈 + 思考」就是現代 API 版的 ReAct，不用再自己寫「Thought: / Action:」的文字格式。適合步驟不能預先確定、要看上一步結果才知道下一步的任務。",
 
       "**2. Plan-and-execute：** 先一次規劃好所有步驟，再逐步執行。好處是結構清楚、可以先給人審核計畫；壞處是計畫可能跟實際情況不符，所以通常要允許中途「重新規劃」。",
-      C(String.raw`from pydantic import BaseModel
+      C(String.raw`from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class Plan(BaseModel):
     steps: list[str]
 
+# llm：呼叫一次模型的小包裝，輸入提示詞與模型名，輸出文字
 def llm(prompt, model="claude-sonnet-5-5"):
     r = client.messages.create(model=model, max_tokens=1024, messages=[{"role": "user", "content": prompt}])
     return get_text(r)                                           # get_text 見上一課
 
+# plan_and_execute：先讓模型列出步驟，再逐步執行，輸入目標，輸出（步驟清單，各步結果）
 def plan_and_execute(goal):
     r = client.messages.parse(model="claude-sonnet-5-5", max_tokens=1024, output_format=Plan,
                               messages=[{"role": "user", "content": "為目標列出 2 到 5 個步驟：" + goal}])
@@ -173,7 +179,8 @@ print(plan_and_execute("寫報告"))
       "`messages.parse` 的寫法見 Prompt 工程的結構化輸出那一課。實際使用時，每一步執行完可以多加一個判斷「計畫還成立嗎？」，不成立就重新規劃。",
 
       "**3. Reflection / evaluator-optimizer（反思、評估與優化）：** 一個步驟產生草稿，另一個步驟審查並給意見，再修改，直到通過或達到上限。官方文章說明它適合「有清楚的評估標準、而且反覆修改確實能改善」的任務，例如文學翻譯。",
-      C(String.raw`def reflect(task, max_rounds=3):
+      C(String.raw`# reflect：反思迴圈，審查通過就停，否則依意見修改，輸入任務與最大輪數，輸出（草稿，修改次數）
+def reflect(task, max_rounds=3):
     draft = llm(task)
     for i in range(max_rounds):
         critique = llm("審查草稿，通過就只回 OK，否則列出問題：\n" + draft)
@@ -192,6 +199,7 @@ print(reflect("寫一句問候"))
 
 HANDLERS = {"billing": "claude-haiku-5-5", "technical": "claude-sonnet-5-5"}   # 類別 → 處理用的模型
 
+# route_and_answer：先分類問題，再交給對應模型處理，輸入問題，輸出（類別，回答）；不認得的類別轉人工
 def route_and_answer(question):
     r = client.messages.parse(model="claude-haiku-5-5", max_tokens=100, output_format=Route,
                               messages=[{"role": "user", "content": "分類為 billing、technical 或 other：" + question}])
@@ -205,8 +213,9 @@ print(route_and_answer("為何多收錢"))     # ('billing', '帳單答覆')    
 print(route_and_answer("我想抱怨"))       # ('other', '轉人工客服')`),
 
       "**5. Orchestrator-workers（指揮者與工人）：** 一個主 agent 把任務拆成子任務，交給多個 worker 並行處理，最後再彙整。子任務是「看輸入才知道有幾個」時特別適合。這是多 Agent 的基礎，後面「多 Agent 協作」那一課會再展開：",
-      C(String.raw`import concurrent.futures as cf
+      C(String.raw`import concurrent.futures as cf  # concurrent.futures：用執行緒池並行執行函式
 
+# orchestrate：把問題拆成子問題並行回答再彙整，輸入問題，輸出整合後的答案
 def orchestrate(question):
     plan = json.loads(llm("拆成子問題，只輸出 JSON 字串陣列：" + question))     # 實際使用要用結構化輸出，這裡為簡化
     with cf.ThreadPoolExecutor(max_workers=4) as ex:                          # 子問題彼此獨立，可以同時進行
@@ -269,7 +278,8 @@ def orchestrate(question):
       ] },
 
       "**一個典型的 workflow：prompt chaining 加檢查關卡**（在鏈的中間檢查，不通過就提早停止，不要把壞的中間結果傳下去）：",
-      C(String.raw`def chain(topic):
+      C(String.raw`# chain：提示鏈，先寫大綱、用程式檢查、再寫文章，輸入主題，輸出（文章或 None，狀態文字）
+def chain(topic):
     outline = llm("寫大綱：" + topic)
     if "###" in outline or len(outline) < 3:           # 關卡：用程式檢查中間結果
         return None, "大綱未通過檢查"
@@ -322,7 +332,8 @@ print([(m["role"], m["content"][0]["type"] if isinstance(m["content"], list) els
 # [('user', 'text'), ('assistant', 'tool_use'), ('user', 'tool_result')]      成對，沒有拆開`),
 
       "**摘要：** 把舊的部分交給模型濃縮，放回第一則 user 訊息裡（這樣角色仍然交替，不會出現連續兩則 assistant）：",
-      C(String.raw`def summarize_old(messages, keep_last=4):
+      C(String.raw`# summarize_old：把較舊的對話摘要成一則，保留最近 keep_last 則，輸入訊息清單，輸出縮短後的訊息清單
+def summarize_old(messages, keep_last=4):
     if len(messages) <= keep_last + 1:
         return messages
     old, recent = messages[1:-keep_last], messages[-keep_last:]
@@ -338,19 +349,22 @@ print([(m["role"], m["content"][0]["type"] if isinstance(m["content"], list) els
       "（用假的模型回應驗證過結構。）摘要會**遺失細節**，所以要明確告訴摘要的提示詞「保留什麼」，重要的事實（檔名、決定、錯誤訊息）寫進去。Claude Agent SDK 在接近上下文上限時會自動壓縮（compact），並可以在 CLAUDE.md 寫摘要時要保留什麼，也有 `PreCompact` hook 可以在壓縮前存檔。",
 
       "**長期記憶 = 對話之外的儲存。** 最簡單就是檔案或資料庫，agent 在任務開始時讀、過程中寫。下面是玩具版（用字元重疊找相關的記憶，實際應該用 embedding 搜尋，見 RAG 階段）：",
-      C(String.raw`import json
-from pathlib import Path
+      C(String.raw`import json  # json：讀寫 JSON
+from pathlib import Path  # Path：處理檔案路徑的物件
 
 MEM = Path("memory.json")
 
+# mem_load：讀取記憶檔，輸出記憶清單（沒有檔案就回空清單）
 def mem_load():
     return json.loads(MEM.read_text(encoding="utf-8")) if MEM.exists() else []
 
+# mem_save：新增一則記憶並寫回檔案，輸入文字與標籤，輸出無
 def mem_save(text, tags):
     items = mem_load()
     items.append({"text": text, "tags": tags, "time": "2026-11-08"})
     MEM.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
 
+# mem_search：用字元重疊數替記憶打分數，輸入查詢與數量 k，輸出最相關的記憶文字
 def mem_search(query, k=3):
     chars = set(query)
     scored = [(len(chars & set(m["text"])), m) for m in mem_load()]
@@ -362,7 +376,7 @@ print(mem_search("資料庫用 PostgreSQL 嗎"))
 # ['專案使用 PostgreSQL 16', '使用者偏好繁體中文回答']      第二筆只是碰巧有重疊的字，說明玩具版的限制`),
 
       "**Claude 的 memory 工具：** 讓 Claude 自己決定要記什麼。你在 `tools` 加上 `{\"type\": \"memory_20250818\", \"name\": \"memory\"}`，Claude 會用 `view`、`create`、`str_replace`、`insert`、`delete`、`rename` 這幾個指令操作 `/memories` 目錄；但**實際的讀寫是你的程式做的**（客戶端工具），你決定存在哪裡、保留多久。官方文件說明：有這個工具時，API 會自動加一段提示，要求 Claude 一開始先查看記憶目錄，並假設隨時可能被中斷，進度要即時記下來。",
-      C(String.raw`import anthropic
+      C(String.raw`import anthropic  # anthropic：Anthropic（Claude）官方 SDK
 from anthropic.tools import BetaLocalFilesystemMemoryTool    # 官方提供的本機檔案版實作
 
 client = anthropic.Anthropic()
@@ -376,11 +390,12 @@ runner = client.beta.messages.tool_runner(                   # 工具執行器�
 )
 final_message = runner.until_done()`),
       "（上面取自官方文件，我沒有實際執行。）如果你自己實作指令的處理，**最重要的是路徑安全**：模型給的路徑可能是 `/memories/../../secret.txt`。官方文件明確要求驗證每個路徑。用 `resolve()` 再確認還在記憶目錄內：",
-      C(String.raw`from pathlib import Path
+      C(String.raw`from pathlib import Path  # Path：處理檔案路徑的物件
 
 MEM_ROOT = Path("mem_root").resolve()
 MEM_ROOT.mkdir(exist_ok=True)
 
+# safe_path：把虛擬路徑轉成真實路徑並確認沒跳出記憶資料夾，輸入虛擬路徑，輸出真實路徑
 def safe_path(virtual):
     if not virtual.startswith("/memories"):
         raise ValueError("路徑必須在 /memories 之下")
@@ -461,9 +476,10 @@ claude mcp add --scope project --transport http secure-api https://api.example.c
 }`),
 
       "**在自己寫的 agent 使用（Claude Agent SDK）：** 用 `mcp_servers` 設定，再用 `allowed_tools` 核准。**MCP 工具的名稱格式是 `mcp__伺服器名__工具名`**，可以用 `*` 萬用字元核准整個 server。官方範例（連到 Claude Code 文件的 MCP server）：",
-      C(String.raw`import asyncio
-from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+      C(String.raw`import asyncio  # asyncio：非同步執行與等待
+from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage  # query：向 Claude Agent SDK 送出任務並串流收回訊息；ClaudeAgentOptions：設定代理的選項（工具、權限、MCP 等）；ResultMessage：代理結束時的結果訊息型別
 
+# main：連上遠端 MCP 伺服器的代理範例，輸入無，輸出無
 async def main():
     options = ClaudeAgentOptions(
         mcp_servers={
@@ -515,9 +531,9 @@ pip install "mcp>=2,<3"`),
 
       "**Server：** 用裝飾器註冊工具。函式的**型別提示**會自動變成輸入的 JSON Schema，**docstring** 會變成工具描述（所以寫好，模型靠它決定何時用）：",
       C(String.raw`# server.py
-import sys
-from mcp.server import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+import sys  # sys：Python 直譯器相關（參數、路徑）
+from mcp.server import MCPServer  # MCPServer：建立 MCP 伺服器並註冊工具
+from mcp.server.mcpserver.exceptions import ToolError  # ToolError：工具執行失敗時丟的例外
 
 mcp = MCPServer("notes")
 NOTES = {"a": "買牛奶", "b": "寫週報"}
@@ -551,9 +567,10 @@ if __name__ == "__main__":
 
       "**Client：** 用 `mcp.Client` 啟動並連到 server（stdio 就是把 server 當子程序啟動）：",
       C(String.raw`# client.py
-import asyncio, sys
-from mcp import Client, StdioServerParameters, MCPError
+import asyncio, sys  # asyncio：非同步執行與等待；sys：Python 直譯器相關（參數、路徑）
+from mcp import Client, StdioServerParameters, MCPError  # Client：MCP 用戶端：連上伺服器、列工具、呼叫工具；StdioServerParameters：設定如何用子行程啟動 MCP 伺服器；MCPError：MCP 通訊錯誤的例外
 
+# main：用 MCP 用戶端連本機伺服器，列工具、呼叫工具、讀資源與提示並印出，輸入無，輸出無
 async def main():
     params = StdioServerParameters(command=sys.executable, args=["server.py"])
     async with Client(params) as client:
@@ -578,12 +595,13 @@ asyncio.run(main())
       "觀察兩件事：**一，工具錯誤不會讓 client 崩潰，而是回傳 `is_error=True` 的結果**，這個結果可以原樣交給模型，讓它知道出錯並調整。**二，如果工具丟的是普通例外（如 `ValueError`），訊息只會是「Error executing tool read_note」**，細節被隱藏（避免洩漏內部資訊）；想讓模型看到原因，要明確丟 `ToolError`。另外 2.x 的遷移指南提到：如果 server 是以 `MCPError` 拒絕請求，`call_tool` 會丟出 `MCPError` 例外，不是回傳 `is_error`。",
 
       "**把 MCP 工具接給 Claude：** MCP 工具的格式（名稱、描述、輸入 Schema）和 Claude 的工具定義幾乎一樣，轉換很簡單。迴圈就是你學過的工具呼叫迴圈，只是「執行工具」那一步改成 `client.call_tool`：",
-      C(String.raw`import asyncio, sys
-import anthropic
-from mcp import Client, StdioServerParameters
+      C(String.raw`import asyncio, sys  # asyncio：非同步執行與等待；sys：Python 直譯器相關（參數、路徑）
+import anthropic  # anthropic：Anthropic（Claude）官方 SDK
+from mcp import Client, StdioServerParameters  # Client：MCP 用戶端：連上伺服器、列工具、呼叫工具；StdioServerParameters：設定如何用子行程啟動 MCP 伺服器
 
 claude = anthropic.Anthropic()
 
+# mcp_agent：從 MCP 伺服器取得工具交給模型使用，輸入問題，輸出答案
 async def mcp_agent(question):
     params = StdioServerParameters(command=sys.executable, args=["server.py"])
     async with Client(params) as mcp_client:
@@ -611,8 +629,9 @@ print(asyncio.run(mcp_agent("筆記 a 寫什麼？")))`),
       "（Claude 的回應用假的模型回應代替，其餘是真的連到上面那個 server：送給模型的工具是 `['list_notes', 'read_note']`，模型要求 `read_note(a)` 後，送回去的 `tool_result` 內容是「買牛奶」，最終回答「筆記 a 是：買牛奶」。）",
 
       "**在 Claude Agent SDK 裡直接定義工具（in-process）：** 不需要另外起程序。SDK 提供 `@tool` 與 `create_sdk_mcp_server`（我確認了名稱與簽名：`tool(name, description, input_schema)`、`create_sdk_mcp_server(name, version, tools)`，沒有實際執行）：",
-      C(String.raw`from claude_agent_sdk import tool, create_sdk_mcp_server, ClaudeAgentOptions
+      C(String.raw`from claude_agent_sdk import tool, create_sdk_mcp_server, ClaudeAgentOptions  # tool：把函式標記成模型可呼叫的工具；create_sdk_mcp_server：在程式內建立 MCP 伺服器（不用另開程序）；ClaudeAgentOptions：設定代理的選項（工具、權限、MCP 等）
 
+# read_note：自訂工具，依 note_id 回傳筆記內容，輸入參數字典，輸出工具結果格式
 @tool("read_note", "讀取一則筆記", {"note_id": str})
 async def read_note(args):
     notes = {"a": "買牛奶"}
@@ -671,8 +690,9 @@ options = ClaudeAgentOptions(
       ] },
 
       "**自己寫一個最小的 orchestrator-workers**（上一階段的 `orchestrate`，這裡重點是任務描述和失敗處理）：",
-      C(String.raw`import concurrent.futures as cf
+      C(String.raw`import concurrent.futures as cf  # concurrent.futures：用執行緒池並行執行函式
 
+# run_worker：把一個子任務包成明確的提示詞交給模型，輸入子問題，輸出文字結果
 def run_worker(task):
     # 好的任務描述：目標、範圍、輸出格式、不要做什麼
     prompt = (
@@ -682,6 +702,7 @@ def run_worker(task):
     )
     return llm(prompt, model="claude-haiku-5-5")                 # worker 用小模型省錢
 
+# orchestrate：用工作者並行處理子問題，輸入問題與子問題清單，輸出各自結果的彙整
 def orchestrate(question, sub_questions):
     with cf.ThreadPoolExecutor(max_workers=4) as ex:
         futures = {ex.submit(run_worker, q): q for q in sub_questions}
@@ -697,7 +718,7 @@ def orchestrate(question, sub_questions):
       "（流程用假的模型回應跑通。）注意三件事：**每個 worker 的任務描述都包含目標、範圍、輸出格式**；**worker 失敗時記錄下來、繼續**；**最後整合時要求標出不確定的部分**。",
 
       "**用 Claude Agent SDK 定義 subagent：** 在 `agents` 選項放 `AgentDefinition`（我確認過欄位：`description`、`prompt`、`tools`、`model`、`maxTurns`、`effort` 等）。主 agent 看 `description` 決定何時委派，所以描述要寫清楚。主 agent 要有 `Agent` 工具才能啟動 subagent（Agent SDK 官方文件的內建工具表列出 `Agent` 為負責生出 subagent 的工具）：",
-      C(String.raw`from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition
+      C(String.raw`from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition  # query：向 Claude Agent SDK 送出任務並串流收回訊息；ClaudeAgentOptions：設定代理的選項（工具、權限、MCP 等）；AgentDefinition：定義一個子代理（說明、提示詞、可用工具）
 
 options = ClaudeAgentOptions(
     allowed_tools=["Read", "Grep", "Glob", "Agent"],
@@ -752,6 +773,7 @@ options = ClaudeAgentOptions(
       "**最簡單的做法：在執行工具前加一道關卡。** 被拒絕時，把拒絕的原因用 `is_error` 回給模型，它會調整做法（例如改問使用者或換方案）：",
       C(String.raw`RISKY = {"delete_file", "send_email"}
 
+# agent：帶人工確認的代理迴圈，輸入任務與 ask 函式，高風險工具先問人，輸出（最後答案，訊息紀錄）
 def agent(task, ask, messages=None, max_turns=5):
     messages = messages or [{"role": "user", "content": task}]
     for _ in range(max_turns):
@@ -771,15 +793,17 @@ def agent(task, ask, messages=None, max_turns=5):
         messages.append({"role": "user", "content": results})
     return "max_turns", messages
 
+# ask_in_terminal：在終端機詢問是否允許，輸入工具名與參數，輸出 True 或 False（預設拒絕）
 def ask_in_terminal(name, args):
     answer = input(f"允許執行 {name}({json.dumps(args, ensure_ascii=False)})？[y/N] ")
     return answer.strip().lower() == "y"           # 預設拒絕：只有明確輸入 y 才通過`),
       "用假的模型回應驗證：模型要求 `delete_file`，`ask` 回 `False` 後，送給模型的 `tool_result` 是 `is_error=True`，模型接著回答「好的，我不會刪除」，沒有真的刪檔案。**預設拒絕**（只有明確的 y 才通過）是核准介面的基本設計。",
 
       "**在 Claude Agent SDK：`can_use_tool` 回呼。** 當工具需要核准、而且前面的規則（hooks、deny、模式、allow）沒有決定時，SDK 呼叫你的函式，你回傳允許或拒絕。官方文件的權限判斷順序是：**hooks → deny 規則 → ask 規則 → 權限模式 → allow 規則 → `can_use_tool`**。重點是：**被 `allowed_tools` 或模式自動核准的工具，不會進到 `can_use_tool`**，想檢查它們要用 `PreToolUse` hook。",
-      C(String.raw`from claude_agent_sdk import ClaudeAgentOptions, HookMatcher, query
-from claude_agent_sdk.types import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
+      C(String.raw`from claude_agent_sdk import ClaudeAgentOptions, HookMatcher, query  # ClaudeAgentOptions：設定代理的選項（工具、權限、MCP 等）；HookMatcher：指定哪些工具呼叫要觸發哪個 hook；query：向 Claude Agent SDK 送出任務並串流收回訊息
+from claude_agent_sdk.types import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext  # PermissionResultAllow：權限回呼用的『允許』結果；PermissionResultDeny：權限回呼用的『拒絕』結果；ToolPermissionContext：權限回呼收到的上下文資訊
 
+# can_use_tool：SDK 的權限回呼，輸入工具名、參數與上下文，輸出允許或拒絕的結果
 async def can_use_tool(tool_name: str, input_data: dict, context: ToolPermissionContext):
     print(f"工具：{tool_name}  參數：{input_data}")
     if input("允許？(y/n) ").lower() == "y":
@@ -790,6 +814,7 @@ async def can_use_tool(tool_name: str, input_data: dict, context: ToolPermission
 async def dummy_hook(input_data, tool_use_id, context):
     return {"continue_": True}
 
+# prompt_stream：以非同步產生器串流送出使用者訊息，輸入無，產出訊息字典
 async def prompt_stream():
     yield {"type": "user", "message": {"role": "user", "content": "在 /tmp 建立一個測試檔再刪掉它"}}
 
@@ -802,22 +827,25 @@ options = ClaudeAgentOptions(
       "**權限模式也是一種 HITL：** `default`（需要核准的才問）、`acceptEdits`（自動接受檔案編輯）、`plan`（只規劃、不動手）、`dontAsk`（遇到要問的一律拒絕，適合沒有人在線的情況）、`bypassPermissions`（全放行，只能用在隔離環境）。想要最嚴格的唯讀 agent，官方建議 `allowed_tools=[\"Read\",\"Glob\",\"Grep\"]` 搭配 `dontAsk`。",
 
       "**在 LangGraph：`interrupt` 暫停、`Command(resume=...)` 繼續。** 它的特點是**暫停時狀態會存到檢查點**，所以可以等很久（甚至程式重啟）再繼續。下面是實際跑過的結果：",
-      C(String.raw`import operator
-from typing import Annotated, TypedDict
-from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.types import interrupt, Command
+      C(String.raw`import operator  # operator：把運算子當函式用（例如加法 add）
+from typing import Annotated, TypedDict  # Annotated：替型別附加額外資訊；TypedDict：用字典形式定義有固定欄位的型別
+from langgraph.graph import StateGraph, START, END  # StateGraph：用節點與邊組成的狀態圖；START：LangGraph 圖的起點標記；END：LangGraph 圖的終點標記
+from langgraph.checkpoint.memory import InMemorySaver  # InMemorySaver：把檢查點存在記憶體的存檔器
+from langgraph.types import interrupt, Command  # interrupt：讓圖執行到這裡暫停、等人回覆；Command：用來恢復被暫停的圖並帶入人工回覆
 
 class State(TypedDict):
     steps: Annotated[list[str], operator.add]       # 每個節點回傳的 steps 會「附加」而不是覆蓋
     n: int
 
+# work：圖節點，記下一步並把計數加一，輸入狀態，輸出要更新的欄位
 def work(state: State):
     return {"steps": [f"work{state['n']}"], "n": state["n"] + 1}
 
+# route：條件邊，計數到 3 就轉到 ask，否則繼續 work，輸入狀態，輸出下一個節點名
 def route(state: State):
     return "ask" if state["n"] >= 3 else "work"
 
+# ask：圖節點，用 interrupt 暫停等人回覆，輸入狀態，輸出人工決定的記錄
 def ask(state: State):
     decision = interrupt({"question": "要執行刪除嗎？", "steps": state["steps"]})   # 在這裡暫停，等人回覆
     return {"steps": [f"human:{decision}"]}
@@ -877,16 +905,18 @@ print(out["steps"])
       ] },
 
       "**最簡單的做法：每完成一個單位就存檢查點（checkpoint）。** 重點是**原子寫入**：先寫到暫存檔，再用 `replace` 換掉正式檔，避免寫到一半當掉留下壞檔：",
-      C(String.raw`import json
-from pathlib import Path
+      C(String.raw`import json  # json：讀寫 JSON
+from pathlib import Path  # Path：處理檔案路徑的物件
 
 CK = Path("ck.json")
 
+# save_ck：原子地寫入檢查點，輸入狀態，輸出無
 def save_ck(state):
     tmp = CK.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
     tmp.replace(CK)                                   # 原子替換：要嘛是舊檔、要嘛是新檔，不會是半個檔
 
+# run_pipeline：逐項處理並每步存檢查點，輸入項目與模擬當機位置，輸出已完成項目的字典
 def run_pipeline(items, crash_at=None):
     state = json.loads(CK.read_text(encoding="utf-8")) if CK.exists() else {"done": {}, "next": 0}
     for i in range(state["next"], len(items)):        # 從上次的進度繼續
@@ -917,10 +947,11 @@ loaded.append({"role": "user", "content": "那改成改名吧"})
       "**恢復時要檢查的邊界情況：** 如果當掉的時候，最後一則是 assistant 的 `tool_use`、但還沒有對應的 `tool_result`，直接送出去會被 API 拒絕。恢復時要先補上（執行該工具，或回一個「這個動作在中斷時沒有完成」的錯誤結果）。**特別小心有副作用的工具：不知道它到底有沒有執行成功，就不要盲目重做。**",
 
       "**冪等（idempotency）：讓「重做」是安全的。** 對有副作用的動作，用「動作內容的雜湊」當鍵，記錄做過沒有，做過就跳過：",
-      C(String.raw`import hashlib
+      C(String.raw`import hashlib  # hashlib：計算雜湊（例如 SHA256）
 
 DONE = Path("done.json")
 
+# once：冪等保護，同一組參數只執行一次，輸入鍵參數與動作函式，做過就回傳 skipped，否則執行並回傳結果
 def once(key_parts, action):
     key = hashlib.sha256(json.dumps(key_parts, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     done = set(json.loads(DONE.read_text())) if DONE.exists() else set()
@@ -940,16 +971,18 @@ print(once({"to": "a@x.com", "subject": "S"}, send), once({"to": "a@x.com", "sub
       "**LangGraph 把這些做成內建功能：checkpointer。** 每個步驟後自動存狀態，用 `thread_id` 識別執行。換成 `SqliteSaver`，狀態存在檔案裡，**重啟程式也能恢復**。下面是實際跑過的結果：先啟動並停在人工核准，**結束程式**；再開一個新的程序，用同一個 `thread_id` 接續：",
       C(String.raw`# PowerShell
 pip install langgraph-checkpoint-sqlite          # SqliteSaver 在獨立的套件裡`),
-      C(String.raw`import operator, sys
-from typing import Annotated, TypedDict
-from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.types import interrupt, Command
+      C(String.raw`import operator, sys  # operator：把運算子當函式用（例如加法 add）；sys：Python 直譯器相關（參數、路徑）
+from typing import Annotated, TypedDict  # Annotated：替型別附加額外資訊；TypedDict：用字典形式定義有固定欄位的型別
+from langgraph.graph import StateGraph, START, END  # StateGraph：用節點與邊組成的狀態圖；START：LangGraph 圖的起點標記；END：LangGraph 圖的終點標記
+from langgraph.checkpoint.sqlite import SqliteSaver  # SqliteSaver：把檢查點存進 SQLite 檔的存檔器
+from langgraph.types import interrupt, Command  # interrupt：讓圖執行到這裡暫停、等人回覆；Command：用來恢復被暫停的圖並帶入人工回覆
 
 class S(TypedDict):
     log: Annotated[list[str], operator.add]
 
+# a：圖節點 a，輸入狀態，輸出記錄
 def a(s): return {"log": ["a"]}
+# b：圖節點 b，先 interrupt 等核准，輸入狀態，輸出記錄
 def b(s):
     ok = interrupt("核准？")
     return {"log": [f"b:{ok}"]}
@@ -1001,9 +1034,10 @@ with SqliteSaver.from_conn_string("cp.sqlite") as saver:
       "**1. Claude Agent SDK：** 把 Claude Code 的 agent 迴圈做成函式庫（Python 與 TypeScript）。你得到的是：**內建工具**（讀寫編輯檔案、執行指令、搜尋、抓網頁）、**權限系統**、**hooks**、**subagents**、**MCP**、**sessions**、上下文自動壓縮。最適合「像 Claude Code 一樣能操作檔案與指令的 agent」（程式碼助手、文件處理、研究助理）。官方文件寫明 SDK 會附帶 Claude Code 的原生執行檔，多數情況不用另外安裝。",
       C(String.raw`# PowerShell
 pip install claude-agent-sdk`),
-      C(String.raw`import asyncio
-from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, ResultMessage
+      C(String.raw`import asyncio  # asyncio：非同步執行與等待
+from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, ResultMessage  # query：向 Claude Agent SDK 送出任務並串流收回訊息；ClaudeAgentOptions：設定代理的選項（工具、權限、MCP 等）；AssistantMessage：模型回覆的訊息型別；ResultMessage：代理結束時的結果訊息型別
 
+# main：限制可用工具並自動核准編輯，印出修正結果，輸入無，輸出無
 async def main():
     async for message in query(
         prompt="檢查 utils.py 裡會造成當機的 bug 並修正",
@@ -1038,7 +1072,7 @@ except Exception as e:
       "**3. OpenAI Agents SDK：** OpenAI 提供的輕量框架，概念很少：`Agent`（指令加工具）、`Runner`（執行迴圈）、`handoff`（交接給其他 agent）、`guardrails`（輸入與輸出檢查）、tracing。`@function_tool` 把 Python 函式變成工具；`Runner.run_sync` 有 `max_turns` 參數（預設 10）。我在安裝後確認過這些名稱與簽名，包含 `function_tool` 有 `needs_approval` 參數可以做人工核准。範例需要 `OPENAI_API_KEY`，我沒有實際執行：",
       C(String.raw`# PowerShell
 pip install openai-agents`),
-      C(String.raw`from agents import Agent, Runner, function_tool
+      C(String.raw`from agents import Agent, Runner, function_tool  # Agent：OpenAI Agents SDK 的代理物件；Runner：執行代理並取回結果；function_tool：把函式標成代理可用的工具
 
 @function_tool
 def get_weather(city: str) -> str:
@@ -1121,7 +1155,7 @@ response = client.messages.create(
       C(String.raw`# PowerShell
 pip install playwright
 python -m playwright install chromium`),
-      C(String.raw`from playwright.sync_api import sync_playwright
+      C(String.raw`from playwright.sync_api import sync_playwright  # sync_playwright：啟動 Playwright（同步版）控制瀏覽器
 
 with sync_playwright() as p:
     browser = p.chromium.launch()                       # 預設無頭模式（沒有視窗）

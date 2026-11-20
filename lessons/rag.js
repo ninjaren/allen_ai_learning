@@ -31,11 +31,12 @@ window.LESSON = window.LESSON || {};
       ] },
 
       "**1. 用 `requests` 取得資料，三個必備設定：**",
-      C(String.raw`import time
-import requests
+      C(String.raw`import time  # time：計時與暫停
+import requests  # requests：發送 HTTP 請求
 
 HEADERS = {"User-Agent": "my-rag-bot/1.0 (contact: you@example.com)"}   # 表明身分
 
+# 抓網頁：輸入網址，回傳頁面文字；失敗會重試並等待，最後仍失敗才丟錯
 def fetch(url, tries=3, timeout=10):
     for attempt in range(1, tries + 1):
         try:
@@ -56,7 +57,7 @@ def fetch(url, tries=3, timeout=10):
         "**著作權與授權**：能抓不代表能用。把別人的內容放進你公開的服務，要先確認授權",
         "**個人資料**：不要蒐集與儲存不必要的個資",
       ] },
-      C(String.raw`from urllib.robotparser import RobotFileParser
+      C(String.raw`from urllib.robotparser import RobotFileParser  # RobotFileParser：讀 robots.txt 並判斷某網址能不能抓
 
 rp = RobotFileParser()
 rp.set_url("https://example.com/robots.txt")
@@ -77,14 +78,15 @@ for entry in feed.entries:
     print(entry.title, entry.link, entry.get("published"))`),
 
       "**4. 增量更新：只處理有變動的資料。** 每次全部重抓、重新轉 embedding 既慢又花錢。做法是為每份文件存一個**內容雜湊**，雜湊沒變就跳過：",
-      C(String.raw`import hashlib
-import sqlite3
-import time
+      C(String.raw`import hashlib  # hashlib：計算雜湊（例如 SHA256）
+import sqlite3  # sqlite3：內建的 SQLite 資料庫
+import time  # time：計時與暫停
 
 conn = sqlite3.connect("docs.db")
 conn.execute("""CREATE TABLE IF NOT EXISTS docs (
     url TEXT PRIMARY KEY, hash TEXT, text TEXT, fetched_at REAL)""")
 
+# 寫入文件：輸入網址與文字，內容雜湊沒變就跳過，有變才更新，回傳是否有寫入
 def upsert(url, text):
     h = hashlib.sha256(text.encode("utf-8")).hexdigest()
     row = conn.execute("SELECT hash FROM docs WHERE url = ?", (url,)).fetchone()
@@ -167,7 +169,8 @@ main = soup.find("main") or soup.body
 print(main.get_text("\n", strip=True))`),
 
       "**3. 表格：轉成 Markdown，保留欄位意義**",
-      C(String.raw`def table_to_md(table):
+      C(String.raw`# table_to_md：把 HTML 表格轉成 Markdown 表格，輸入表格元素，輸出 Markdown 字串
+def table_to_md(table):
     rows = [[c.get_text(strip=True) for c in tr.find_all(["th", "td"])]
             for tr in table.find_all("tr")]
     lines = ["| " + " | ".join(rows[0]) + " |",
@@ -182,10 +185,12 @@ print(table_to_md(main.find("table")))
       "表格如果被壓成「名 價 A 10」，欄位和值的對應就消失了，模型也無從判斷哪個數字是價格。大型表格可以逐列轉成句子，例如「商品 A 的價格是 10」，每一列獨立成一個片段。",
 
       "**4. Markdown：依標題切段，並記錄標題路徑**",
-      C(String.raw`import re
+      C(String.raw`import re  # re：正規表達式
 
+# 把 Markdown 依標題切段：輸入全文，輸出每段的標題路徑與內文
 def split_md(text):
     sections, cur, path, in_code = [], [], [], False
+    # flush：把目前累積的行收成一段，存進 sections 後清空
     def flush():
         if cur:
             sections.append({"heading": " > ".join(path), "text": "\n".join(cur).strip()})
@@ -220,7 +225,8 @@ for s in split_md(md):
       "OCR 這一段沒有在本機實際執行（需另外安裝 Tesseract 程式）；請依官方安裝文件操作。",
 
       "**6. 解析完要檢查，而不是假設成功：**",
-      C(String.raw`def check_parsed(pages, min_chars=20):
+      C(String.raw`# check_parsed：檢查解析結果，輸入各頁文字與最少字數，輸出『幾乎沒文字的頁』的問題清單
+def check_parsed(pages, min_chars=20):
     problems = []
     for p in pages:
         if len(p["text"].strip()) < min_chars:
@@ -248,9 +254,10 @@ print(check_parsed([{"page": 1, "text": "x" * 100}, {"page": 2, "text": ""}]))
       "解析出來的文字通常很髒：全形半形混用、多餘空白、不可見字元、重複的頁首頁尾、同一份內容出現多次。**清洗**讓文字一致；**metadata（後設資料）** 則是附在每個片段上的標籤，讓你之後能過濾、排序、引用。",
 
       "**1. 基本清洗**",
-      C(String.raw`import re
-import unicodedata
+      C(String.raw`import re  # re：正規表達式
+import unicodedata  # unicodedata：Unicode 字元處理（這裡用來做正規化）
 
+# 清洗文字：輸入原文，輸出統一字元、去掉看不見符號後的文字
 def clean(text):
     text = unicodedata.normalize("NFKC", text)        # 全形英數轉半形，統一相容字元
     text = text.replace("\u3000", " ")                # 全形空白
@@ -264,7 +271,7 @@ print(repr(clean("Ｐｙｔｈｏｎ　很好\u200b用\n\n\n\n第二段   空白
       "`NFKC` 會把「Ｐｙｔｈｏｎ」變成「Python」，也會把全形標點轉成半形（例如「，」會變成「,」，「（」變成「(」）。這對搜尋有幫助，但如果你想保留中文標點，可以只對英數字處理，或在清洗後不改標點。**先決定規則，再統一套用**，索引和查詢兩邊都要用同一個清洗函式。",
 
       "**2. 移除重複的頁首頁尾與固定雜訊**",
-      C(String.raw`from collections import Counter
+      C(String.raw`from collections import Counter  # Counter：計數器，統計每個項目出現幾次
 
 def remove_boilerplate(pages, min_ratio=0.6):
     """出現在超過 60% 頁面的行，視為頁首／頁尾，移除。"""
@@ -281,8 +288,9 @@ print(remove_boilerplate(pages))
       "「公司機密」出現在每一頁，被移除；每頁不同的「第 1 頁」不是完全相同的行，所以保留。實際使用時要依你的文件調整規則，並抽樣檢查有沒有誤刪。",
 
       "**3. 去除重複內容**",
-      C(String.raw`import hashlib
+      C(String.raw`import hashlib  # hashlib：計算雜湊（例如 SHA256）
 
+# 去重：輸入片段清單，依去掉空白後的內容雜湊移除重複，回傳保留下來的片段
 def dedupe(items):
     seen, out = set(), []
     for it in items:
@@ -359,7 +367,8 @@ print(len(dedupe([{"text": "a b"}, {"text": "ab"}, {"text": "c"}])))     # 2`),
       ] },
 
       "**1. 固定大小（含重疊）**：最簡單，適合沒有結構的純文字。",
-      C(String.raw`def fixed_chunks(text, size=500, overlap=50):
+      C(String.raw`# fixed_chunks：固定長度切分，輸入全文、片段長度與重疊字數，輸出片段清單
+def fixed_chunks(text, size=500, overlap=50):
     step = size - overlap
     return [text[i:i + size] for i in range(0, max(len(text) - overlap, 1), step)]
 
@@ -368,7 +377,8 @@ print(fixed_chunks("0123456789abcdefghij", 10, 3))
       "**重疊（overlap）** 讓相鄰兩個片段共用一小段內容，避免重要的句子剛好被切在邊界上。缺點是不管內容結構，可能把一個句子或一個條款攔腰切斷。",
 
       "**2. 遞迴切分**：依序嘗試用較大的分隔符（空行、換行、句號、逗號、空白）切，切完太長的片段再用下一層分隔符切，最後把小片段合併到上限內。盡量保持段落和句子完整：",
-      C(String.raw`def split_text(text, max_len=500, seps=("\n\n", "\n", "。", "，", " ")):
+      C(String.raw`# split_text：遞迴切分，優先用大分隔符，切不開再換小的，輸入全文、長度上限與分隔符，輸出片段清單
+def split_text(text, max_len=500, seps=("\n\n", "\n", "。", "，", " ")):
     if len(text) <= max_len:
         return [text]
     for i, sep in enumerate(seps):
@@ -404,7 +414,7 @@ for c in split_text(txt, 20):
       "**4. 語意切分**：計算相鄰句子的 embedding 相似度，在相似度明顯下降的地方（話題轉換）切開。品質可能較好，但需要為每個句子計算 embedding，成本和複雜度都較高。**先把固定、遞迴、結構切分做好，再考慮。**",
 
       "**5. 用 token 而不是字元計算長度**：embedding 模型的上限和計費是用 token，不是字元。`tiktoken` 可以計算 token 數（中文通常一個字約一個到數個 token，依模型而異）：",
-      C(String.raw`import tiktoken
+      C(String.raw`import tiktoken  # tiktoken：計算文字有幾個 token
 
 enc = tiktoken.get_encoding("cl100k_base")
 text = "商品到貨七天內，未拆封可無條件退貨。"
@@ -439,6 +449,7 @@ print(len(text), len(enc.encode(text)))    # 18 25   字元數與 token 數不�
 請用一到兩句話說明這個片段在整份文件中的位置與主題，讓人只看這個片段也能知道它在講什麼
 （例如是哪個產品、哪個章節、哪段時間）。只輸出這段說明。"""
 
+# 替片段加脈絡：輸入整份文件與片段，請模型寫一句說明它在文件中的位置，回傳說明文字
 def contextualize(client, document, chunk):
     prompt = CONTEXT_PROMPT.replace("{document}", document).replace("{chunk}", chunk)
     reply = client.messages.create(
@@ -478,7 +489,7 @@ def contextualize(client, document, chunk):
 
       "**用 Voyage 取得 embedding（依官方文件的寫法）：**",
       C(String.raw`import voyageai                      # pip install -U voyageai
-import numpy as np
+import numpy as np  # numpy：陣列與數值運算
 
 vo = voyageai.Client()                # 自動讀取環境變數 VOYAGE_API_KEY
 
@@ -498,7 +509,7 @@ print(documents[int(np.argmax(similarities))])`),
         "**內積（dot product）**：兩個向量對應位置相乘再加總。如果向量已經正規化（長度為 1），內積就等於餘弦相似度，而且算得更快",
         "**歐氏距離（Euclidean）**：兩點的直線距離，越小越相似。向量長度為 1 時，用它排序的結果與餘弦相同",
       ] },
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
 x = np.array([1.0, 2.0, 3.0])
 y = np.array([2.0, 4.0, 6.0])          # 方向相同、長度是兩倍
@@ -512,20 +523,23 @@ xn, yn = x / np.linalg.norm(x), y / np.linalg.norm(y)   # 正規化成長度 1
 print(round(float(np.dot(xn, yn)), 3))             # 1.0  正規化後，內積 = 餘弦`),
 
       "**用一個小範例看語意檢索的流程。** 為了離線可執行，下面用「字元 bigram 計數向量」當替身：它**只看兩段文字有多少相同的字詞片段，並不理解語意**，所以只是示範流程；真正的 embedding 模型才能處理『用不同的詞表達同一件事』：",
-      C(String.raw`import re
-import numpy as np
+      C(String.raw`import re  # re：正規表達式
+import numpy as np  # numpy：陣列與數值運算
 
 class ToyEmbedder:
     """示範用：每個『相鄰兩字』是一個維度，計數後正規化。不理解語意，只看字面重疊。"""
+    # 建立簡易詞袋嵌入：輸入語料，統計出現過的字元二連詞並編號
     def __init__(self, texts):
         grams = sorted({g for t in texts for g in self._grams(t)})
         self.index = {g: i for i, g in enumerate(grams)}
 
+    # 斷成二連詞：把文字去空白、轉小寫後切成字元二連詞清單
     @staticmethod
     def _grams(t):
         t = re.sub(r"\s+", "", t.lower())
         return [t[i:i + 2] for i in range(len(t) - 1)] or [t]
 
+    # 把文字轉成向量：輸入文字清單，輸出每句一列的二連詞計數矩陣
     def embed(self, texts):
         M = np.zeros((len(texts), len(self.index)))
         for r, t in enumerate(texts):
@@ -582,8 +596,9 @@ print(np.round(emb.embed(["怎麼把東西寄回去換錢"]) @ M.T, 2))   # 同�
       "下面的程式沿用上一課的 `ToyEmbedder`（只看字面，示範流程用）。換成真正的 embedding 模型後，只需要替換產生向量的那一行，效果會明顯更好，尤其是處理『換個說法』的情況。",
 
       "**1. 聚類：用 k-means 分群**",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
+# 簡易 k-means：輸入資料、群數、迭代次數，輸出每筆所屬群與各群中心
 def kmeans(X, k, iters=20, seed=0):
     rng = np.random.default_rng(seed)
     cent = X[rng.choice(len(X), k, replace=False)].copy()
@@ -612,7 +627,8 @@ for p in pairs:
       "門檻值（這裡是 0.3）完全取決於你的 embedding 模型和資料，**沒有通用值**。做法是：先抽一批人工標記『重複／不重複』的配對，看哪個門檻最準，再套用到全部資料。配對數是 n 的平方，資料量大時要改用向量資料庫的近鄰搜尋，不要用兩兩比較。",
 
       "**3. 推薦：找最相近的項目**",
-      C(String.raw`def similar_to(index, k=2):
+      C(String.raw`# similar_to：找最相似的文件，輸入某筆文件編號與數量 k，輸出（文件，相似度）清單（排除自己）
+def similar_to(index, k=2):
     scores = M @ M[index]
     order = [i for i in np.argsort(-scores) if i != index][:k]      # 排除自己
     return [(docs[i], round(float(scores[i]), 2)) for i in order]
@@ -756,7 +772,7 @@ LIMIT 5;`),
       "HNSW 的原始論文是 Malkov 與 Yashunin 的《Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs》（見頁首的連結）。主流向量資料庫（Chroma、pgvector、Qdrant 等）大多提供 HNSW。",
 
       "**用一個 IVF 玩具實驗看取捨（已實際執行）：** 5000 筆 32 維向量，分成 20 群，查詢 50 次，比較不同 `nprobe` 下的召回率與掃描的資料量：",
-      C(String.raw`import numpy as np
+      C(String.raw`import numpy as np  # numpy：陣列與數值運算
 
 rng = np.random.default_rng(1)
 N, D = 5000, 32
@@ -781,6 +797,7 @@ for _ in range(10):
 lab = np.argmax(data @ cent.T, axis=1)
 lists = {j: np.where(lab == j)[0] for j in range(nlist)}
 
+# IVF 近似搜尋：只在最近的 nprobe 個群裡比對，輸入查詢向量，回傳前 k 筆編號
 def ivf_search(q, nprobe, k=10):
     probe = np.argsort(-(cent @ q))[:nprobe]                  # 只挑最近的 nprobe 群
     cand = np.concatenate([lists[j] for j in probe])
@@ -845,10 +862,11 @@ print(col.configuration["hnsw"])
       ] },
 
       "**1. BM25：經典的關鍵字排序演算法。** 它根據詞在文件中出現的次數、詞的稀有程度、文件長度來打分。中文沒有空白分詞，簡單的做法是用字元 bigram 當 token（或用 jieba 等斷詞工具）：",
-      C(String.raw`import re
-import numpy as np
+      C(String.raw`import re  # re：正規表達式
+import numpy as np  # numpy：陣列與數值運算
 from rank_bm25 import BM25Okapi      # pip install rank_bm25
 
+# 斷詞：輸入文字，輸出字元二連詞清單（給 BM25 用）
 def tok(text):
     t = re.sub(r"\s+", "", text.lower())
     return [t[i:i + 2] for i in range(len(t) - 1)]       # 字元 bigram
@@ -865,7 +883,7 @@ print([corpus[i] for i in np.argsort(-bm.get_scores(tok("A12345")))[:1]])
 # ['訂單編號 A12345 的物流狀態查詢']      <- 精確比對編號，向量檢索常做不到`),
 
       "**2. SQLite FTS5：不用額外套件的全文檢索。** Python 內建的 sqlite3 通常已包含 FTS5。中文要用 `trigram` 分詞器（SQLite 3.34 以上）：",
-      C(String.raw`import sqlite3
+      C(String.raw`import sqlite3  # sqlite3：內建的 SQLite 資料庫
 
 db = sqlite3.connect(":memory:")
 db.execute("CREATE VIRTUAL TABLE t USING fts5(body, tokenize='trigram')")
@@ -882,8 +900,9 @@ print(db.execute("SELECT body FROM t WHERE t MATCH ?", ("退貨",)).fetchall())
       "最後這個行為很容易踩雷：`trigram` 分詞器查不到少於 3 個字元的詞（已測試）。兩個字的中文詞很常見，所以中文全文檢索常常需要自己斷詞（jieba）或改用 BM25 套件。",
 
       "**3. 合併兩個排名：Reciprocal Rank Fusion（RRF）。** 向量分數和 BM25 分數的尺度完全不同，不能直接相加。RRF 只看**名次**：每個排名裡第 r 名得 `1 / (k + r)` 分（`k` 通常取 60），把各排名的分數加總再排序：",
-      C(String.raw`from collections import defaultdict
+      C(String.raw`from collections import defaultdict  # defaultdict：取不到鍵時自動建立預設值的字典
 
+# 倒數排名融合：輸入多份排名清單，輸出合併後依分數排序的文件
 def rrf(rankings, k=60):
     score = defaultdict(float)
     for ranking in rankings:
@@ -958,6 +977,7 @@ print([i["text"] for i in items if i["lang"] == "zh" and i["year"] >= 2025])   #
 2. 如果問題本身已經完整，原樣輸出
 3. 只輸出改寫後的問題"""
 
+# 改寫查詢：輸入對話歷史與最新問題，請模型改成不依賴上下文的完整問題
 def rewrite_query(client, history, question):
     convo = "\n".join(f"{m['role']}: {m['content']}" for m in history)
     reply = client.messages.create(
@@ -972,11 +992,12 @@ def rewrite_query(client, history, question):
 
       "**2. Multi-query：產生多個說法，分別檢索，再合併**",
       "用結構化輸出（見階段 5）讓模型回傳一個查詢清單，每個查詢各自檢索，最後用 RRF 合併（見上一課）：",
-      C(String.raw`from pydantic import BaseModel
+      C(String.raw`from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class Queries(BaseModel):
     queries: list[str]
 
+# 查詢擴寫：輸入問題與數量 n，請模型產生 n 個不同說法，回傳查詢清單
 def expand_query(client, question, n=3):
     response = client.messages.parse(
         model="claude-haiku-5-5", max_tokens=500,
@@ -986,6 +1007,7 @@ def expand_query(client, question, n=3):
     )
     return response.parsed_output.queries
 
+# 多查詢檢索：用原問題加擴寫查詢各搜一次，再用 RRF 合併，回傳前 top_k 筆
 def multi_query_search(client, question, search_fn, top_k=5):
     queries = [question] + expand_query(client, question)       # 原問題也要保留
     rankings = [search_fn(q) for q in queries]                   # search_fn 回傳文件 id 排名清單
@@ -993,7 +1015,8 @@ def multi_query_search(client, question, search_fn, top_k=5):
       "模擬測試：把「怎麼退貨」展開成 ['退貨流程', '如何申請退款', '退換貨規定'] 三個查詢，分別檢索再用 RRF 合併，得到的排名由多個查詢共同決定。**原問題一定要保留在查詢清單裡**，改寫可能偏離原意。",
 
       "**3. HyDE：用『假想答案』檢索**",
-      C(String.raw`def hyde_query(client, question):
+      C(String.raw`# hyde_query：HyDE，請模型先寫一段假設答案，用它去檢索，輸入問題，輸出假設答案文字
+def hyde_query(client, question):
     reply = client.messages.create(
         model="claude-haiku-5-5", max_tokens=300,
         system="針對使用者的問題，寫一段你認為文件裡可能出現的簡短答案（約 2 到 3 句）。這段文字只用來搜尋，不需要完全正確。",
@@ -1038,7 +1061,7 @@ def multi_query_search(client, question, search_fn, top_k=5):
       "**為什麼 reranker 比向量檢索準？** reranker（常見為 cross-encoder）把『問題』和『候選片段』**一起**輸入模型，模型能直接比對兩者的細節；向量檢索則是各自轉成向量再算距離。代價是不能預先算好，每次查詢都要對每個候選跑一次模型。",
 
       "**1. 用 Voyage 的 reranker（依官方文件的寫法）：**",
-      C(String.raw`import voyageai
+      C(String.raw`import voyageai  # voyageai：Voyage AI 的嵌入與重排序用戶端
 
 vo = voyageai.Client()
 
@@ -1051,11 +1074,12 @@ for r in reranking.results:
       "Embeddings 官方文件列出的 reranker 有 `rerank-3`（準確度最高）和 `rerank-3-lite`（低延遲低成本）。我確認過 `vo.rerank(query, documents, model, top_k)` 的簽名，以及回傳結果的欄位（`index`、`document`、`relevance_score`）和套件原始碼一致；沒有真的連線呼叫。其他廠商（例如 Cohere）也有類似的 rerank API。",
 
       "**2. 用 LLM 當 reranker：不需要額外服務。** 把問題和候選片段交給 Claude，請它依相關程度排序（用結構化輸出拿到編號清單）：",
-      C(String.raw`from pydantic import BaseModel
+      C(String.raw`from pydantic import BaseModel  # BaseModel：資料模型的基底類別，會自動驗證欄位
 
 class Ranked(BaseModel):
     order: list[int]            # 候選編號，由最相關到最不相關
 
+# 用模型重排：輸入查詢與候選片段，請模型挑出最相關的 top_k 筆並回傳
 def llm_rerank(client, query, candidates, top_k=3):
     listing = "\n".join(f'<candidate id="{i}">{c}</candidate>' for i, c in enumerate(candidates))
     response = client.messages.parse(
@@ -1122,7 +1146,8 @@ def llm_rerank(client, query, candidates, top_k=3):
         "`citations`：`{\"enabled\": true}`。**預設是關閉的**，要引用就必須明確開啟，而且同一個請求裡所有 search result 的設定必須一致",
       ] },
       "有兩種送法：①作為**工具的回傳結果**（放在 `tool_result` 的 `content` 裡，適合讓模型自己決定何時搜尋）；②直接放在 **user 訊息**裡（適合你已經事先檢索好）。下面是①的樣子：",
-      C(String.raw`def search_kb(query):
+      C(String.raw`# search_kb：把檢索結果包成 search_result 區塊讓模型引用，輸入查詢，輸出區塊清單
+def search_kb(query):
     hits = retrieve(query)            # 你的檢索函式，回傳 [{"source":..., "title":..., "text":...}, ...]
     return [
         {
@@ -1231,6 +1256,7 @@ print(should_refuse([]))            # True`),
     "點數規則": [],
 }
 
+# 圖擴展：從種子節點出發沿邊走 hops 步，回傳所有走到的節點
 def expand(seeds, hops=1):
     seen, frontier = set(seeds), set(seeds)
     for _ in range(hops):
